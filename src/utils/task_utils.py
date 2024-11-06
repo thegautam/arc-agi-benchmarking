@@ -45,23 +45,32 @@ def convert_2d_list_to_string(list_of_lists: List[List[int]]) -> str:
 def regex_extract_json(response: str) -> List[List[int]]:
     """
     Extract JSON from various possible formats in the response.
+    Returns None if extraction or parsing fails.
     """
-    json_str_match = re.search(r'\[.*\]', response, re.DOTALL)
-    if json_str_match:
-        return json.loads(json_str_match.group(0))
+    try:
+        json_str_match = re.search(r'\[.*\]', response, re.DOTALL)
+        if json_str_match:
+            return json.loads(json_str_match.group(0))
+    except json.JSONDecodeError:
+        return None
+    except Exception:
+        return None
     
     return None
 
 def extract_json_from_code_block(response: str) -> List[List[int]]:
     """
     Extract JSON from a code block in the response.
+    Returns None if extraction or parsing fails.
     """
-    # Try to extract JSON from code block
-    code_block_start = response.find("```json")
-    code_block_end = response.find("```", code_block_start + 6)
-    if code_block_start != -1 and code_block_end != -1:
-        json_str = response[code_block_start + 6:code_block_end].strip()
-        return json.loads(json_str)
+    try:
+        code_block_start = response.find("```json")
+        code_block_end = response.find("```", code_block_start + 6)
+        if code_block_start != -1 and code_block_end != -1:
+            json_str = response[code_block_start + 6:code_block_end].strip()
+            return json.loads(json_str)
+    except (json.JSONDecodeError, ValueError, Exception):
+        return None
     
     return None
 

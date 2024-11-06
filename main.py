@@ -64,10 +64,6 @@ class ARCTester:
         json_llm_match = self.provider.extract_json_from_response(response)
         if json_llm_match:
             return json_llm_match
-        
-        llm_json_extraction = self.provider.extract_json_from_response(response)
-        if llm_json_extraction:
-            return llm_json_extraction
     
         # If all extraction methods fail, raise an exception
         raise json.JSONDecodeError("Failed to extract valid JSON from the response", response, 0)
@@ -80,7 +76,7 @@ class ARCTester:
         """
 
         # Try to convert 1d list to 2d list
-        # This is a bandaid hack when the LLM returns a single-item list containing an integer
+        # This is a band-aid hack when the LLM returns a single-item list containing an integer
         one_d_match = self.convert_1d_list_to_2d_list(response)
         if one_d_match:
             return one_d_match
@@ -88,7 +84,7 @@ class ARCTester:
         # First, try to parse the raw JSON response
         try:
             parsed_json = json.loads(response)
-        except json.JSONDecodeError:
+        except:
             # If raw parsing fails, try to extract JSON from various formats
             parsed_json = self.extract_json_from_response(response)
         
