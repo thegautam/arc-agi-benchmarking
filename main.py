@@ -33,14 +33,14 @@ class ARCTester:
 
     def convert_1d_list_to_2d_list(self, data: str) -> Optional[List[List[int]]]:
         """
-        If the input string represents a single-item list containing an integer,
+        If the input string represents a single-item list containing one or more integers,
         return it as a nested list. Otherwise, return None.
         """
         try:
             # Remove whitespace and parse the string as JSON
             parsed_data = json.loads(data.strip())
-            if isinstance(parsed_data, list) and len(parsed_data) == 1 and isinstance(parsed_data[0], int):
-                result = [[parsed_data[0]]]
+            if isinstance(parsed_data, list) and 1 <= len(parsed_data) <= 30 and all(isinstance(item, int) for item in parsed_data):
+                result = [[item] for item in parsed_data]
                 return result
         except json.JSONDecodeError:
             pass
