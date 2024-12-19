@@ -7,6 +7,8 @@ This repo contains code for testing model baselines on ARC-AGI. The input data i
 
 `git clone https://github.com/arcprizeorg/model_baseline.git`
 
+`git submodule update --init`
+
 `pip install -r requirements.txt`
 
 ## Testing a single task
