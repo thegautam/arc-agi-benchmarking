@@ -33,6 +33,19 @@ class ARCTester:
         if self.print_logs:
             print(message)
 
+    def convert_single_integer_to_2d_list(self, data: str) -> Optional[List[List[int]]]:
+        """
+        If the input string represents a single integer, return it as a nested list.
+        Otherwise, return None.
+        """
+        try:
+            parsed_data = int(data)
+            result = [[parsed_data]]
+            return result
+        except ValueError:
+            pass
+        return None
+
     def convert_1d_list_to_2d_list(self, data: str) -> Optional[List[List[int]]]:
         """
         If the input string represents a single-item list containing one or more integers,
@@ -76,6 +89,9 @@ class ARCTester:
 
         This is unfortunately a necessary evil.
         """
+        single_integer_match = self.convert_single_integer_to_2d_list(response)
+        if single_integer_match:
+            return single_integer_match
 
         # Try to convert 1d list to 2d list
         # This is a band-aid hack when the LLM returns a single-item list containing an integer
