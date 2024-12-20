@@ -1,5 +1,5 @@
 import json
-from src.adapters import ProviderAdapter, AnthropicAdapter
+from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter
 from dotenv import load_dotenv
 import src.utils as utils
 from src.models import ARCTaskOutput, ARCPair
@@ -23,6 +23,8 @@ class ARCTester:
     def init_provider(self, provider: str, model_name: str) -> ProviderAdapter:
         if provider == "anthropic":
             return AnthropicAdapter(model_name)
+        elif provider == "openai":
+            return OpenAIAdapter(model_name)
         ## To do: add other providers as models are added
         else:
             raise ValueError(f"Unsupported provider: {provider}")
@@ -31,16 +33,29 @@ class ARCTester:
         if self.print_logs:
             print(message)
 
+    def convert_single_integer_to_2d_list(self, data: str) -> Optional[List[List[int]]]:
+        """
+        If the input string represents a single integer, return it as a nested list.
+        Otherwise, return None.
+        """
+        try:
+            parsed_data = int(data)
+            result = [[parsed_data]]
+            return result
+        except ValueError:
+            pass
+        return None
+
     def convert_1d_list_to_2d_list(self, data: str) -> Optional[List[List[int]]]:
         """
-        If the input string represents a single-item list containing an integer,
+        If the input string represents a single-item list containing one or more integers,
         return it as a nested list. Otherwise, return None.
         """
         try:
             # Remove whitespace and parse the string as JSON
             parsed_data = json.loads(data.strip())
-            if isinstance(parsed_data, list) and len(parsed_data) == 1 and isinstance(parsed_data[0], int):
-                result = [[parsed_data[0]]]
+            if isinstance(parsed_data, list) and 1 <= len(parsed_data) <= 30 and all(isinstance(item, int) for item in parsed_data):
+                result = [[item] for item in parsed_data]
                 return result
         except json.JSONDecodeError:
             pass
@@ -74,6 +89,9 @@ class ARCTester:
 
         This is unfortunately a necessary evil.
         """
+        single_integer_match = self.convert_single_integer_to_2d_list(response)
+        if single_integer_match:
+            return single_integer_match
 
         # Try to convert 1d list to 2d list
         # This is a band-aid hack when the LLM returns a single-item list containing an integer
