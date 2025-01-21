@@ -1,5 +1,5 @@
 import json
-from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter
+from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter
 from dotenv import load_dotenv
 import src.utils as utils
 from src.models import ARCTaskOutput, ARCPair
@@ -25,6 +25,8 @@ class ARCTester:
             return AnthropicAdapter(model_name)
         elif provider == "openai":
             return OpenAIAdapter(model_name)
+        elif provider == "deepseek":
+            return DeepseekAdapter(model_name)
         ## To do: add other providers as models are added
         else:
             raise ValueError(f"Unsupported provider: {provider}")
@@ -127,6 +129,7 @@ class ARCTester:
         self.print_log(f"Making prediction for task")
         response = self.provider.make_prediction(prompt)
 
+        # print(response)
         return response
 
     def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair) -> ARCTaskOutput:
