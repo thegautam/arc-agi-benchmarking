@@ -56,3 +56,26 @@ Specifically, we would love help adding more model adapters to the `src/adapters
 More will get added by the ARC-AGI team, but we'll also gladly accept contributions from the community.
 
 For more information visit the [ARC Prize](https://arcprize.org/).
+
+### CLI Usage
+
+#### Validation
+The CLI tool provides validation for model outputs against task sets. To validate a model's outputs:
+
+```bash
+python cli/main.py validate <task_directory> <output_directory>
+```
+
+For example:
+```bash
+python cli/main.py validate data/arc-agi/data/evaluation submissions/open_ai_o1_high_20241217
+```
+
+The validator will:
+1. Count JSON files in both directories
+2. Verify the output directory has the same number of files as the task directory
+3. Validate that all output files contain valid JSON
+
+The command will return:
+- ✅ Success if file counts match and all JSON is valid
+- ❌ Error if counts mismatch or invalid JSON is found
