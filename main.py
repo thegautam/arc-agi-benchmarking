@@ -1,5 +1,5 @@
 import json
-from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter
+from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter
 from dotenv import load_dotenv
 import src.utils as utils
 from src.models import ARCTaskOutput, ARCPair
@@ -27,7 +27,8 @@ class ARCTester:
             return OpenAIAdapter(model_name)
         elif provider == "deepseek":
             return DeepseekAdapter(model_name)
-        ## To do: add other providers as models are added
+        elif provider == "gemini":
+            return GeminiAdapter(model_name)
         else:
             raise ValueError(f"Unsupported provider: {provider}")
         
