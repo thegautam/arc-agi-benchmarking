@@ -5,6 +5,10 @@ import json
 import os
 from pathlib import Path
 from huggingface_hub import HfApi
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 def validate_json_structure(content):
     """Validate the JSON can be parsed."""
