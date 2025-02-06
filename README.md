@@ -56,3 +56,92 @@ Specifically, we would love help adding more model adapters to the `src/adapters
 More will get added by the ARC-AGI team, but we'll also gladly accept contributions from the community.
 
 For more information visit the [ARC Prize](https://arcprize.org/).
+
+### CLI Usage
+
+#### Validation
+Validate model outputs against task sets:
+```bash
+# Basic validation
+python cli/main.py validate data/arc-agi/data/evaluation submissions/open_ai_o1_high_20241217
+
+# Validate another model's outputs
+python cli/main.py validate data/arc-agi/data/evaluation submissions/claude_sonnet_20241022
+```
+
+#### Upload
+Upload a single model's outputs to a task set repository:
+```bash
+# Basic upload (private repository)
+python cli/main.py upload submissions/open_ai_o1_high_20241217 --task-set public_eval_v1
+
+# Upload to a different organization
+python cli/main.py upload submissions/claude_sonnet_20241022 --task-set public_eval_v1 --org your-org-name
+
+# Create a public repository
+python cli/main.py upload submissions/deepseek_v3 --task-set public_eval_v1 --public
+```
+
+#### Bulk Upload
+Upload multiple model outputs at once:
+```bash
+# Upload all models in submissions directory (private repository)
+python cli/main.py bulk-upload submissions/ --task-set public_eval_v1
+
+# Upload to a different organization
+python cli/main.py bulk-upload submissions/ --task-set public_eval_v1 --org your-org-name
+
+# Create a public repository
+python cli/main.py bulk-upload submissions/ --task-set public_eval_v1 --public
+```
+
+Notes:
+- All uploads create private repositories by default
+- Use `--public` flag to create public repositories
+- Files are uploaded to subdirectories matching model names
+- Default organization is "arcprize"
+
+### Hugging Face Upload
+
+#### Authentication
+Before uploading, you'll need to authenticate with Hugging Face:
+
+1. Get your access token from https://huggingface.co/settings/tokens
+2. Set up authentication using either method:
+   ```bash
+   # Option 1: Environment variable
+   export HUGGING_FACE_HUB_TOKEN=your_token_here
+   
+   # Option 2: CLI login
+   huggingface-cli login
+   ```
+
+#### Upload
+The upload process organizes submissions by task sets. Each task set (e.g., public_eval_v1) becomes a separate dataset repository on Hugging Face, with model submissions organized in subdirectories.
+
+Structure:
+```
+task_set_name/
+├── model_name_1/
+│   ├── result1.json
+│   ├── result2.json
+├── model_name_2/
+│   ├── result1.json
+│   └── result2.json
+```
+
+To upload model outputs:
+```bash
+python cli/main.py upload submissions/model_name --task-set task_set_name [--org organization] [--public]
+```
+
+For example:
+```bash
+python cli/main.py upload submissions/open_ai_o1_high_20241217 --task-set public_eval_v1
+```
+
+#### Bulk Upload
+To upload multiple model outputs at once:
+```bash
+python cli/main.py bulk-upload submissions/ --task-set task_set_name [--org organization] [--public]
+```
