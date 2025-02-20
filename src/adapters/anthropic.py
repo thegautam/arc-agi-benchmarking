@@ -41,7 +41,7 @@ class AnthropicAdapter(ProviderAdapter):
 
         return response.content[0].text
 
-    def chat_completion(self, messages, tools=[]) -> str:
+    def chat_completion(self, messages, tools=[]):
         response = self.model.messages.create(
             model=self.model_name,
             max_tokens=self.max_tokens,
@@ -84,7 +84,9 @@ class AnthropicAdapter(ProviderAdapter):
         Use the extract_json tool.
         """
 
-        response = self.chat_completion(
+        response = self.model.messages.create(
+            model=self.model_name,
+            max_tokens=self.max_tokens,
             messages=[{"role": "user", "content": query}],
             tools=tools
         )
