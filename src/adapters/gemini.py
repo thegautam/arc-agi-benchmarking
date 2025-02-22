@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 import json
 import google.generativeai as genai
 from typing import List, Optional
+from datetime import datetime
+from src.models import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 
 load_dotenv()
 
@@ -25,9 +27,85 @@ class GeminiAdapter(ProviderAdapter):
         return genai.GenerativeModel(model_name)
 
     def make_prediction(self, prompt: str) -> str:
+        start_time = datetime.utcnow()
+        
         messages = [{"role": "user", "content": prompt}]
         response = self.chat_completion(messages)
-        return response.text
+        
+        end_time = datetime.utcnow()
+
+        # Calculate costs based on Gemini's pricing
+        # These rates should be moved to a config file in production
+        input_cost_per_token = 0.000001  # $0.001/1K tokens for Gemini Pro
+        output_cost_per_token = 0.000002  # $0.002/1K tokens for Gemini Pro
+        
+        # Get token counts from response
+        input_tokens = response.prompt_token_count
+        output_tokens = response.candidates[0].token_count
+        
+        prompt_cost = input_tokens * input_cost_per_token
+        completion_cost = output_tokens * output_cost_per_token
+
+        # Convert input messages to choices
+        input_choices = [
+            Choice(
+                index=i,
+                message=Message(
+                    role=msg["role"],
+                    content=msg["content"]
+                )
+            )
+            for i, msg in enumerate(messages)
+        ]
+
+        # Convert Gemini response to our schema
+        response_choices = [
+            Choice(
+                index=len(input_choices),
+                message=Message(
+                    role="assistant",
+                    content=response.text
+                )
+            )
+        ]
+
+        # Combine input and response choices
+        all_choices = input_choices + response_choices
+
+        # Create metadata using our Pydantic models
+        metadata = AttemptMetadata(
+            model=self.model_name,
+            provider="gemini",
+            start_timestamp=start_time,
+            end_timestamp=end_time,
+            choices=all_choices,
+            kwargs={
+                "max_tokens": self.max_tokens,
+                "temperature": self.generation_config["temperature"]
+            },
+            usage=Usage(
+                prompt_tokens=input_tokens,
+                completion_tokens=output_tokens,
+                total_tokens=input_tokens + output_tokens,
+                completion_tokens_details=CompletionTokensDetails(
+                    reasoning_tokens=0,  # Gemini doesn't provide this breakdown
+                    accepted_prediction_tokens=output_tokens,
+                    rejected_prediction_tokens=0  # Gemini doesn't provide this
+                )
+            ),
+            cost=Cost(
+                prompt_cost=prompt_cost,
+                completion_cost=completion_cost,
+                total_cost=prompt_cost + completion_cost
+            )
+        )
+
+        attempt = Attempt(
+            metadata=metadata,
+            answer=response.text
+        )
+
+        return attempt.answer
 
     def chat_completion(self, messages: list) -> str:
         # Convert to Gemini's message format
