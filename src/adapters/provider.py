@@ -4,6 +4,14 @@ import json
 from datetime import datetime
 
 class ProviderAdapter(abc.ABC):
+
+    @abc.abstractmethod
+    def init_client(self):
+        """
+        Initialize the client for the provider
+        """
+        pass
+    
     @abc.abstractmethod
     def make_prediction(self, prompt: str) -> str:
         """

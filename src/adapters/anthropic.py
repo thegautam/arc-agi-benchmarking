@@ -11,11 +11,11 @@ load_dotenv()
 class AnthropicAdapter(ProviderAdapter):
     def __init__(self, model_name: str, max_tokens: int = 4024):
         # Initialize VertexAI model
-        self.model = self.init_model()
+        self.model = self.init_client()
         self.model_name = model_name
         self.max_tokens = max_tokens
 
-    def init_model(self):
+    def init_client(self):
         """
         Initialize the Anthropic model
         """

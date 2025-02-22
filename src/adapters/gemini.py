@@ -9,7 +9,7 @@ load_dotenv()
 
 class GeminiAdapter(ProviderAdapter):
     def __init__(self, model_name: str, max_tokens: int = 4024):
-        self.model = self.init_model(model_name)
+        self.model = self.init_client(model_name)
         self.model_name = model_name
         self.max_tokens = max_tokens
         self.generation_config = {
@@ -17,7 +17,7 @@ class GeminiAdapter(ProviderAdapter):
             "temperature": 0.0
         }
 
-    def init_model(self, model_name: str):
+    def init_client(self, model_name: str):
         if not os.environ.get("GOOGLE_API_KEY"):
             raise ValueError("GOOGLE_API_KEY not found in environment variables")
         
