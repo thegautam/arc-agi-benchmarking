@@ -54,8 +54,8 @@ class AttemptMetadata(BaseModel):
         }
 
 class Attempt(BaseModel):
-    metadata: AttemptMetadata
     answer: str
+    metadata: AttemptMetadata
     
     class Config:
         json_encoders = {
