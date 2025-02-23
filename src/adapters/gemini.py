@@ -6,11 +6,14 @@ import google.generativeai as genai
 from typing import List, Optional
 from datetime import datetime
 from src.models import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
+import logging
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 class GeminiAdapter(ProviderAdapter):
     def __init__(self, model_name: str, max_tokens: int = 4024):
+        logger.debug(f"Initializing GeminiAdapter with model: {model_name}")
         self.model = self.init_client(model_name)
         self.model_name = model_name
         self.max_tokens = max_tokens
@@ -29,19 +32,26 @@ class GeminiAdapter(ProviderAdapter):
     def make_prediction(self, prompt: str) -> str:
         start_time = datetime.utcnow()
         
+        # Get input token count before making the request
+        input_tokens = self.model.count_tokens(prompt)
+        logger.debug(f"Input tokens count: {input_tokens}")
+        
         messages = [{"role": "user", "content": prompt}]
         response = self.chat_completion(messages)
         
         end_time = datetime.utcnow()
 
+        # Get token counts from response metadata
+        usage_metadata = response.usage_metadata
+        logger.debug(f"Response usage metadata: {usage_metadata}")
+        
+        input_tokens = usage_metadata.prompt_token_count
+        output_tokens = usage_metadata.candidates_token_count
+        total_tokens = usage_metadata.total_token_count
+
         # Calculate costs based on Gemini's pricing
-        # These rates should be moved to a config file in production
         input_cost_per_token = 0.000001  # $0.001/1K tokens for Gemini Pro
         output_cost_per_token = 0.000002  # $0.002/1K tokens for Gemini Pro
-        
-        # Get token counts from response
-        input_tokens = response.prompt_token_count
-        output_tokens = response.candidates[0].token_count
         
         prompt_cost = input_tokens * input_cost_per_token
         completion_cost = output_tokens * output_cost_per_token
@@ -86,7 +96,7 @@ class GeminiAdapter(ProviderAdapter):
             usage=Usage(
                 prompt_tokens=input_tokens,
                 completion_tokens=output_tokens,
-                total_tokens=input_tokens + output_tokens,
+                total_tokens=total_tokens,
                 completion_tokens_details=CompletionTokensDetails(
                     reasoning_tokens=0,  # Gemini doesn't provide this breakdown
                     accepted_prediction_tokens=output_tokens,
