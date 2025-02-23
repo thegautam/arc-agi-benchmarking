@@ -47,10 +47,20 @@ class AttemptMetadata(BaseModel):
     kwargs: Dict[str, Any]
     usage: Usage
     cost: Cost
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 class Attempt(BaseModel):
     metadata: AttemptMetadata
     answer: str
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 class Attempts(BaseModel):
     attempts: List[Attempt]

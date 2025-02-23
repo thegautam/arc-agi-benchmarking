@@ -76,12 +76,11 @@ def extract_json_from_code_block(response: str) -> List[List[int]]:
 
 def save_submission(save_submission_dir: str, task_id: str, task_attempts) -> None:
     """
-    Save the submission to a file
+    Save the submission to a file with full attempt metadata
     """
-    # Create the submission directory if it doesn't exist
     os.makedirs(save_submission_dir, exist_ok=True)
-    
     submission_file = os.path.join(save_submission_dir, f"{task_id}.json")
+    
     with open(submission_file, "w") as f:
         json.dump(task_attempts, f, indent=4)
 
