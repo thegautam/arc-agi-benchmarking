@@ -2,6 +2,7 @@ import abc
 from typing import List, Dict, Tuple, Any
 import json
 from datetime import datetime
+from src.models import Attempt
 
 class ProviderAdapter(abc.ABC):
 
@@ -13,7 +14,7 @@ class ProviderAdapter(abc.ABC):
         pass
     
     @abc.abstractmethod
-    def make_prediction(self, prompt: str) -> str:
+    def make_prediction(self, prompt: str) -> Attempt:
         """
         Make a prediction with the model and return an Attempt object's answer
         """

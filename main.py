@@ -2,7 +2,7 @@ import json
 from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter
 from dotenv import load_dotenv
 import src.utils as utils
-from src.models import ARCTaskOutput, ARCPair
+from src.models import ARCTaskOutput, ARCPair, Attempt
 from src.prompts.prompt_manager import convert_task_pairs_to_prompt
 from typing import List, Any, Optional
 import os
@@ -128,10 +128,11 @@ class ARCTester:
         prompt = convert_task_pairs_to_prompt(training_pairs, test_input)
 
         self.print_log(f"Making prediction for task")
-        response = self.provider.make_prediction(prompt)
+        response: Attempt = self.provider.make_prediction(prompt)
+        prediction = response.answer
 
         # print(response)
-        return response
+        return prediction
 
     def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair) -> ARCTaskOutput:
         """

@@ -29,7 +29,7 @@ class AnthropicAdapter(ProviderAdapter):
 
         return client
     
-    def make_prediction(self, prompt: str) -> str:
+    def make_prediction(self, prompt: str) -> Attempt:
         """
         Make a prediction with the Anthropic model and return an Attempt object
         """
@@ -110,7 +110,7 @@ class AnthropicAdapter(ProviderAdapter):
             answer=response.content[0].text if response.content else ""
         )
 
-        return attempt.answer
+        return attempt
 
     def chat_completion(self, messages, tools=[]):
         """

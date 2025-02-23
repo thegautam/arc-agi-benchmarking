@@ -21,7 +21,7 @@ class OpenAIAdapter(ProviderAdapter):
         client = OpenAI()
         return client
 
-    def make_prediction(self, prompt: str) -> str:
+    def make_prediction(self, prompt: str) -> Attempt:
         start_time = datetime.utcnow()
         
         messages = [
@@ -97,7 +97,7 @@ class OpenAIAdapter(ProviderAdapter):
             answer=response.choices[0].message.content.strip()
         )
 
-        return attempt.answer
+        return attempt
 
     def chat_completion(self, messages: list) -> str:
         return self.client.chat.completions.create(

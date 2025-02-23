@@ -29,7 +29,7 @@ class GeminiAdapter(ProviderAdapter):
         genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
         return genai.GenerativeModel(model_name)
 
-    def make_prediction(self, prompt: str) -> str:
+    def make_prediction(self, prompt: str) -> Attempt:
         start_time = datetime.utcnow()
         
         # Get input token count before making the request
@@ -115,7 +115,7 @@ class GeminiAdapter(ProviderAdapter):
             answer=response.text
         )
 
-        return attempt.answer
+        return attempt
 
     def chat_completion(self, messages: list) -> str:
         # Convert to Gemini's message format
