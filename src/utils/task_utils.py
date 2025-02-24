@@ -92,14 +92,19 @@ def normalize_model_name(name: str) -> str:
     Normalize model name for comparison by:
     1. Converting dots to dashes
     2. Removing any date suffixes
-    3. Removing duplicate dashes
+    3. Removing 'latest' suffix
+    4. Removing duplicate dashes
     
     Examples:
         claude-3.5-sonnet -> claude-3-5-sonnet
         claude-3-5-sonnet-20240315 -> claude-3-5-sonnet
+        claude-3-5-sonnet-latest -> claude-3-5-sonnet
     """
     # Remove any date suffix (assuming YYYYMMDD format)
     name = re.sub(r'-\d{8}$', '', name)
+    
+    # Remove 'latest' suffix
+    name = re.sub(r'-latest$', '', name)
     
     # Convert dots to dashes
     name = name.replace('.', '-')

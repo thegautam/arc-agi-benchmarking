@@ -21,7 +21,6 @@ models:
   - name: "o1"
     provider: "openai"
     max_completion_tokens: 4024
-    temperature: 0.0
     pricing:
       date: "2025-02-23"
       input: 15.00  # Standard input price; note: a cached input rate of 7.50 exists.
@@ -30,7 +29,6 @@ models:
   - name: "o3-mini"
     provider: "openai"
     max_completion_tokens: 4024
-    temperature: 0.0
     pricing:
       date: "2025-02-23"
       input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
@@ -39,7 +37,6 @@ models:
   - name: "o1-mini"
     provider: "openai"
     max_completion_tokens: 4024
-    temperature: 0.0
     pricing:
       date: "2025-02-23"
       input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
