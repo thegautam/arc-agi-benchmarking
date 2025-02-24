@@ -1,0 +1,107 @@
+# Prices are in USD per 1 million tokens.
+# Pricing effective date: February 23rd, 2025.
+models:
+  - name: "gpt-4o"
+    provider: "openai"
+    pricing:
+      date: "2025-02-23"
+      input: 2.50   # Standard input price; note: a cached input rate of 1.25 exists.
+      output: 10.00
+
+  - name: "gpt-4o-mini"
+    provider: "openai"
+    pricing:
+      date: "2025-02-23"
+      input: 0.15   # Standard input price; note: a cached input rate of 0.075 exists.
+      output: 0.60
+
+  - name: "o1"
+    provider: "openai"
+    pricing:
+      date: "2025-02-23"
+      input: 15.00  # Standard input price; note: a cached input rate of 7.50 exists.
+      output: 60.00
+
+  - name: "o3-mini"
+    provider: "openai"
+    pricing:
+      date: "2025-02-23"
+      input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
+      output: 4.40
+
+  - name: "o1-mini"
+    provider: "openai"
+    pricing:
+      date: "2025-02-23"
+      input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
+      output: 4.40
+
+  - name: "claude-3.5-sonnet"
+    provider: "anthropic"
+    pricing:
+      date: "2025-02-23"
+      input: 3.00   # Single input price per 1M tokens.
+      output: 15.00 # Single output price per 1M tokens.
+
+  - name: "claude-3.5-haiku"
+    provider: "anthropic"
+    pricing:
+      date: "2025-02-23"
+      input: 0.80   # Single input price per 1M tokens.
+      output: 4.00  # Single output price per 1M tokens.
+
+  - name: "claude-3-opus"
+    provider: "anthropic"
+    pricing:
+      date: "2025-02-23"
+      input: 15.00  # Single input price per 1M tokens.
+      output: 75.00 # Single output price per 1M tokens.
+
+  - name: "deepseek-chat"
+    provider: "deepseek"
+    pricing:
+      date: "2025-02-23"
+      input: 0.07   # Cache-hit input price per 1M tokens; note: cache-miss price is 0.27.
+      output: 1.10  # Output price per 1M tokens.
+
+  - name: "deepseek-reasoner"
+    provider: "deepseek"
+    pricing:
+      date: "2025-02-23"
+      input: 0.14   # Cache-hit input price per 1M tokens; note: cache-miss price is 0.55.
+      output: 2.19  # Output price per 1M tokens.
+
+  - name: "gemini-1.5-pro"
+    provider: "gemini"
+    pricing:
+      date: "2025-02-23"
+      input: 1.25   # For prompts ≤128k tokens (normalized); prompts >128k tokens are priced at 2.50.
+      output: 5.00   # For prompts ≤128k tokens (normalized); prompts >128k tokens are priced at 10.00.
+
+  - name: "gemini-1.5-flash-8b"
+    provider: "gemini"
+    pricing:
+      date: "2025-02-23"
+      input: 0.0375   # For prompts ≤128k tokens (normalized); prompts >128k tokens are priced at 0.075.
+      output: 0.15    # For prompts ≤128k tokens (normalized); prompts >128k tokens are priced at 0.30.
+
+  - name: "gemini-1.5-flash"
+    provider: "gemini"
+    pricing:
+      date: "2025-02-23"
+      input: 0.075   # For prompts ≤128k tokens (normalized); prompts >128k tokens are priced at 0.15.
+      output: 0.30    # For prompts ≤128k tokens (normalized); prompts >128k tokens are priced at 0.60.
+
+  - name: "gemini-2.0-flash-lite"
+    provider: "gemini"
+    pricing:
+      date: "2025-02-23"
+      input: 0.075   # Single input rate per 1M tokens.
+      output: 0.30   # Single output rate per 1M tokens.
+
+  - name: "gemini-2.0-flash"
+    provider: "gemini"
+    pricing:
+      date: "2025-02-23"
+      input: 0.10   # Normalized to text/image/video rate; audio prompts are priced at 0.70.
+      output: 0.40  # Single output rate per 1M tokens.
