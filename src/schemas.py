@@ -1,6 +1,7 @@
 from pydantic import BaseModel, model_validator, root_validator
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
+import json
 
 class ARCTaskOutput(BaseModel):
     output: List[List[int]]
@@ -54,8 +55,22 @@ class AttemptMetadata(BaseModel):
         }
 
 class Attempt(BaseModel):
-    answer: str
+    answer: Union[str, List[List[int]]]
     metadata: AttemptMetadata
+    
+    @model_validator(mode='before')
+    @classmethod
+    def validate_answer(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Ensure answer is properly serialized"""
+        if not isinstance(values, dict):
+            return values
+            
+        answer = values.get('answer')
+        if isinstance(answer, list):
+            # Convert nested list to string representation
+            values['answer'] = json.dumps(answer)
+            
+        return values
     
     class Config:
         json_encoders = {

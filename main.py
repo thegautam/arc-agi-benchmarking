@@ -142,7 +142,7 @@ class ARCTester:
         try:
             # Parse the answer field but keep the full attempt object
             parsed_answer = self.parse_and_validate_json(attempt.metadata.choices[0].message.content)
-            # Update the answer in the original attempt
+            # Update the answer in the original attempt - now accepts List[List[int]]
             attempt.answer = parsed_answer
             return attempt
         except json.JSONDecodeError as e:
