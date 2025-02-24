@@ -1,5 +1,5 @@
 import os
-from src.models import ARCPair
+from src.schemas import ARCPair
 from typing import List
 import json
 import re

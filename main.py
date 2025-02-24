@@ -2,7 +2,7 @@ import json
 from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter
 from dotenv import load_dotenv
 import src.utils as utils
-from src.models import ARCTaskOutput, ARCPair, Attempt
+from src.schemas import ARCTaskOutput, ARCPair, Attempt
 from src.prompts.prompt_manager import convert_task_pairs_to_prompt
 from typing import List, Any, Optional
 import os

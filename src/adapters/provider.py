@@ -2,7 +2,7 @@ import abc
 from typing import List, Dict, Tuple, Any
 import json
 from datetime import datetime
-from src.models import Attempt
+from src.schemas import Attempt
 
 class ProviderAdapter(abc.ABC):
 

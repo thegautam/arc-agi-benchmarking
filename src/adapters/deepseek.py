@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import json
 from openai import OpenAI
 from datetime import datetime
-from src.models import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
+from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import logging
 
 load_dotenv()
