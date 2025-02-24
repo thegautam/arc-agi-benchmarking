@@ -168,6 +168,19 @@ The tests ensure that:
 - The output matches the expected format
 - The provider correctly handles token usage and costs
 
+### Testing Different Model Configurations
+
+You can test the same model with different configurations by using the `--config_name` parameter:
+
+```bash
+# Test a model with a specific configuration
+python3 -m main --data_dir data/arc-agi/data/evaluation --provider openai --model o1 --config_name high_temp --task_id sample_task_id --print_logs
+```
+
+The `test_providers.sh` script includes examples of testing the same model with different configurations, such as:
+- `openai o1 0b17323b high_temp` - Testing o1 with high temperature
+- `openai o1 0b17323b low_temp` - Testing o1 with low temperature
+
 ## Adding New Providers and Models
 
 ### 1. Configure Models in models.yml
@@ -184,6 +197,24 @@ New models are defined in `src/models.yml`. Each model requires:
     input: 0.00   # Cost per 1M input tokens
     output: 0.00  # Cost per 1M output tokens
 ```
+
+#### Multiple Configurations for the Same Model
+
+You can define multiple configurations for the same model by adding the `config_name` field:
+
+```yaml
+- name: "model-name"
+  provider: "provider-name"
+  config_name: "configuration-name"  # e.g., "high_temp"
+  max_tokens: 4024
+  temperature: 0.7  # Different parameter values
+  pricing:
+    date: "YYYY-MM-DD"
+    input: 0.00
+    output: 0.00
+```
+
+This allows testing the same model with different parameter settings.
 
 ### 2. Create Provider Adapter
 

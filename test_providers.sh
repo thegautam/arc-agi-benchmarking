@@ -7,19 +7,24 @@ run_test() {
     local provider=$1
     local model=$2
     local task_id=$3
+    local config_name=$4
     
-    echo "🔄 Testing provider: ${provider}, model: ${model}, task: ${task_id}"
-    if python3 -m main \
-        --data_dir data/arc-agi/data/evaluation \
-        --provider "${provider}" \
-        --model "${model}" \
-        --task_id "${task_id}" \
-        --save_submission_dir . \
-        --print_logs; then
-        echo "✅ Test completed successfully for ${provider}/${model}"
+    echo "🔄 Testing provider: ${provider}, model: ${model}, task: ${task_id}, config: ${config_name:-default}"
+    
+    # Build the command with optional config_name
+    local cmd="python3 -m main --data_dir data/arc-agi/data/evaluation --provider \"${provider}\" --model \"${model}\" --task_id \"${task_id}\" --save_submission_dir . --print_logs"
+    
+    # Add config_name if provided
+    if [ -n "$config_name" ]; then
+        cmd="$cmd --config_name \"${config_name}\""
+    fi
+    
+    # Execute the command
+    if eval $cmd; then
+        echo "✅ Test completed successfully for ${provider}/${model}${config_name:+/}${config_name}"
         return 0
     else
-        echo "❌ Test failed for ${provider}/${model}"
+        echo "❌ Test failed for ${provider}/${model}${config_name:+/}${config_name}"
         return 1
     fi
 }
@@ -29,10 +34,11 @@ export -f run_test
 echo "Starting provider tests..."
 
 # Create a temporary file with all configurations
-if cat << EOF | parallel --halt now,fail=1 --colsep ' ' -j4 "run_test {1} {2} {3}"
+if cat << EOF | parallel --halt now,fail=1 --colsep ' ' -j4 "run_test {1} {2} {3} {4}"
 anthropic claude-3-5-sonnet-20241022 e7639916
 openai gpt-4o 66f2d22f
-openai o1 0b17323b
+openai o1 0b17323b short_response
+openai o1 0b17323b long_response
 openai o3-mini 85b81ff1
 deepseek deepseek-chat d4b1c2b1
 gemini gemini-1.5-pro e57337a4

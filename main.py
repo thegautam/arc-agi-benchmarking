@@ -11,24 +11,25 @@ import argparse
 load_dotenv()
 
 class ARCTester:
-    def __init__(self, provider: str, model_name: str, save_submission_dir: str, overwrite_submission: bool, print_submission: bool, num_attempts: int, retry_attempts: int, print_logs: bool):
-        self.provider = self.init_provider(provider, model_name)
+    def __init__(self, provider: str, model_name: str, save_submission_dir: str, overwrite_submission: bool, print_submission: bool, num_attempts: int, retry_attempts: int, print_logs: bool, config_name: Optional[str] = None):
+        self.provider = self.init_provider(provider, model_name, config_name)
         self.save_submission_dir = save_submission_dir
         self.overwrite_submission = overwrite_submission
         self.print_submission = print_submission
         self.num_attempts = num_attempts
         self.retry_attempts = retry_attempts
         self.print_logs = print_logs
+        self.config_name = config_name
 
-    def init_provider(self, provider: str, model_name: str) -> ProviderAdapter:
+    def init_provider(self, provider: str, model_name: str, config_name: Optional[str] = None) -> ProviderAdapter:
         if provider == "anthropic":
-            return AnthropicAdapter(model_name)
+            return AnthropicAdapter(model_name, config_name)
         elif provider == "openai":
-            return OpenAIAdapter(model_name)
+            return OpenAIAdapter(model_name, config_name)
         elif provider == "deepseek":
-            return DeepseekAdapter(model_name)
+            return DeepseekAdapter(model_name, config_name)
         elif provider == "gemini":
-            return GeminiAdapter(model_name)
+            return GeminiAdapter(model_name, config_name)
         else:
             raise ValueError(f"Unsupported provider: {provider}")
         
@@ -115,7 +116,7 @@ class ARCTester:
         
         return parsed_json
         
-    def predict_task_output(self, training_pairs: List[ARCPair], test_input: ARCPair):
+    def predict_task_output(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str):
         """
         Given a task, predict the test output. This reponse may need parsing.
 
@@ -127,17 +128,17 @@ class ARCTester:
         # Convert the training pairs and test pairs into a prompt
         prompt = convert_task_pairs_to_prompt(training_pairs, test_input)
 
-        self.print_log(f"Making prediction for task")
-        response: Attempt = self.provider.make_prediction(prompt)
+        self.print_log(f"Making prediction for task {task_id}, test {test_id}")
+        response: Attempt = self.provider.make_prediction(prompt, task_id=task_id, test_id=test_id)
 
         return response
 
-    def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair) -> Attempt:
+    def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str) -> Attempt:
         """
         Modified to return the full Attempt object instead of just the parsed answer
         """
         # Get the initial response as an Attempt object
-        attempt: Attempt = self.predict_task_output(training_pairs, test_input)
+        attempt: Attempt = self.predict_task_output(training_pairs, test_input, task_id, test_id)
 
         try:
             # Parse the answer field but keep the full attempt object
@@ -161,6 +162,16 @@ class ARCTester:
         self.print_log(f"Running task {task_id}")
         utils.validate_data(data_dir, task_id)
 
+        # Extract test_id from data_dir path
+        # Use everything after the "data" directory in the path
+        # For example, from "data/arc-agi/data/evaluation", we want "arc-agi/data/evaluation"
+        if "data/" in data_dir:
+            test_id = data_dir.split("data/", 1)[1]
+        else:
+            test_id = data_dir  # Fallback if "data/" is not in the path
+        
+        self.print_log(f"Using test_id: {test_id}")
+
         # Logic for overwrite. If save_submission_dir is provided, check if the submission already exists
         if self.save_submission_dir and utils.submission_exists(self.save_submission_dir, task_id) and not self.overwrite_submission:
             self.print_log(f"Submission for task {task_id} already exists, skipping")
@@ -173,6 +184,7 @@ class ARCTester:
 
         # Go through each test pair to get a prediction. 96% of challenges have 1 pair.
         for t, pair in enumerate(test_input):
+            current_test_id = str(t)
             self.print_log(f"Starting task {task_id}, Pair #{t+1}")
             pair_attempts = {}
 
@@ -184,10 +196,12 @@ class ARCTester:
                 for retry in range(self.retry_attempts):
                     try:
                         self.print_log(f"    Predicting attempt #{attempt}, retry #{retry + 1}")
-                        # Now storing the full attempt object
+                        # Now storing the full attempt object with task_id and test_id
                         attempt_obj = self.get_task_prediction(
                             training_pairs=train_pairs,
-                            test_input=pair
+                            test_input=pair,
+                            task_id=task_id,
+                            test_id=test_id
                         )
 
                         if attempt_obj is not None:
@@ -221,6 +235,7 @@ if __name__ == "__main__":
     parser.add_argument("--task_id", type=str, help="Specific task ID to run")
     parser.add_argument("--provider", type=str, default="anthropic", help="Provider to use")
     parser.add_argument("--model", type=str, default="claude-3-5-sonnet-20241022", help="Model to use")
+    parser.add_argument("--config_name", type=str, help="Optional configuration name for the model")
     parser.add_argument(
         "--save_submission_dir",
         type=str,
@@ -243,10 +258,11 @@ if __name__ == "__main__":
         print_submission=args.print_submission,
         num_attempts=args.num_attempts,
         retry_attempts=args.retry_attempts,
-        print_logs=args.print_logs
+        print_logs=args.print_logs,
+        config_name=args.config_name
     )
    
     arc_solver.generate_task_solution(
         data_dir=args.data_dir,
-        task_id=args.task_id, 
+        task_id=args.task_id
     )
