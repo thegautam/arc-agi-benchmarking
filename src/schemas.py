@@ -50,7 +50,6 @@ class AttemptMetadata(BaseModel):
     cost: Cost
     task_id: Optional[str] = None
     test_id: Optional[str] = None
-    config_name: Optional[str] = None
     
     model_config = {
         'json_encoders': {

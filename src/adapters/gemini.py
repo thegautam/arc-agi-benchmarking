@@ -111,8 +111,7 @@ class GeminiAdapter(ProviderAdapter):
                 total_cost=prompt_cost + completion_cost
             ),
             task_id=task_id,  # Add task_id to metadata
-            test_id=test_id,  # Add test_id to metadata
-            config_name=self.model_config.name  # Add config_name to metadata
+            test_id=test_id  # Add test_id to metadata
         )
 
         attempt = Attempt(

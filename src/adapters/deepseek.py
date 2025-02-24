@@ -92,8 +92,7 @@ class DeepseekAdapter(ProviderAdapter):
                 total_cost=prompt_cost + completion_cost
             ),
             task_id=task_id,
-            test_id=test_id,
-            config_name=self.model_config.name
+            test_id=test_id
         )
 
         attempt = Attempt(
