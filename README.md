@@ -145,3 +145,83 @@ To upload multiple model outputs at once:
 ```bash
 python cli/main.py bulk-upload submissions/ --task-set task_set_name [--org organization] [--public]
 ```
+## Contributing: Testing Providers
+
+For contributors implementing new providers, we provide a streamlined way to validate your implementation using the `test_providers.sh` script. This script helps ensure your provider implementation works correctly with the ARC-AGI tasks before submitting a pull request.
+
+### Running Provider Tests for Development
+
+```bash
+# Run all provider tests
+./test_providers.sh
+
+# The script will test multiple provider/model combinations in parallel
+# Each test will:
+# 1. Run a specific task for each provider/model
+# 2. Save the output
+# 3. Report success/failure
+```
+
+The tests ensure that:
+- The provider can successfully connect to its API
+- The model can process ARC-AGI tasks
+- The output matches the expected format
+- The provider correctly handles token usage and costs
+
+## Adding New Providers and Models
+
+### 1. Configure Models in models.yml
+
+New models are defined in `src/models.yml`. Each model requires:
+
+```yaml
+- name: "model-name"
+  provider: "provider-name"
+  max_tokens: 4024  # or appropriate limit
+  temperature: 0.0  # optional
+  pricing:
+    date: "YYYY-MM-DD"
+    input: 0.00   # Cost per 1M input tokens
+    output: 0.00  # Cost per 1M output tokens
+```
+
+### 2. Create Provider Adapter
+
+1. Create a new file in `src/adapters/` (e.g., `my_provider.py`)
+2. Implement the `ProviderAdapter` class:
+   ```python
+   from .provider import ProviderAdapter
+   
+   class MyProviderAdapter(ProviderAdapter):
+       def init_client(self):
+           # Initialize API client
+           pass
+           
+       def make_prediction(self, prompt: str) -> Attempt:
+           # Make prediction and return standardized Attempt object
+           pass
+           
+       def chat_completion(self, messages: str) -> str:
+           # Handle chat completion
+           pass
+   ```
+
+3. Key requirements:
+   - Handle authentication (typically via environment variables)
+   - Implement proper error handling
+   - Convert provider-specific responses to standardized formats
+   - Track and report token usage and costs
+
+### 3. Test New Provider
+
+1. Add test cases to `test_providers.sh`
+2. Test with sample tasks:
+   ```bash
+   python3 -m main --data_dir data/arc-agi/data/evaluation --provider new_provider --model new_model --task_id sample_task_id --print_logs
+   ```
+
+Remember to:
+- Follow the existing patterns in other provider implementations
+- Maintain consistent error handling
+- Document any provider-specific requirements or limitations
+- Update tests to cover the new provider
