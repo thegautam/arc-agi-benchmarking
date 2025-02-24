@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator, root_validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
@@ -64,3 +64,41 @@ class Attempt(BaseModel):
 
 class Attempts(BaseModel):
     attempts: List[Attempt]
+
+class ModelPricing(BaseModel):
+    date: str
+    input: float
+    output: float
+
+class ModelConfig(BaseModel):
+    """
+    A model configuration used to populate a models kwargs and calculatepricing metadata. 
+    Points to model.yml
+    """
+    name: str
+    provider: str
+    pricing: ModelPricing
+    kwargs: Dict[str, Any] = {}
+
+    @model_validator(mode='before')
+    @classmethod
+    def build_kwargs(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Collects any extra fields into kwargs"""
+        if not isinstance(values, dict):
+            return values
+            
+        kwargs = {}
+        known_fields = {'name', 'provider', 'pricing', 'kwargs'}
+        
+        for field_name, value in values.items():
+            if field_name not in known_fields:
+                kwargs[field_name] = value
+                
+        if 'kwargs' in values:
+            kwargs.update(values['kwargs'])
+                
+        values['kwargs'] = kwargs
+        return values
+
+    class Config:
+        extra = "allow"  # Allow extra fields to be stored in kwargs

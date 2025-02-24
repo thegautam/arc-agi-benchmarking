@@ -1,8 +1,9 @@
 import os
-from src.schemas import ARCPair
-from typing import List
+from src.schemas import ARCPair, ModelConfig
+from typing import List, Dict, Any
 import json
 import re
+import yaml
 
 def get_train_pairs_from_task(data_dir, task_id) -> List[ARCPair]:
     """
@@ -85,3 +86,27 @@ def save_submission(save_submission_dir: str, task_id: str, task_attempts) -> No
         json.dump(task_attempts, f, indent=4)
 
     return submission_file
+
+def read_models_config(model_name: str) -> ModelConfig:
+    """
+    Reads and parses the models.yml configuration file for a specific model.
+    
+    Args:
+        model_name (str): The name of the model to get configuration for
+        
+    Returns:
+        ModelConfig: The configuration for the specified model
+        
+    Raises:
+        ValueError: If the model name is not found in the configuration
+    """
+    models_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models.yml")
+    
+    with open(models_file, 'r') as f:
+        config = yaml.safe_load(f)
+        
+    for model in config['models']:
+        if model['name'] == model_name:
+            return ModelConfig(**model)
+            
+    raise ValueError(f"Model '{model_name}' not found in configuration")
