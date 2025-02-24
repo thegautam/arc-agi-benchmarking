@@ -9,17 +9,10 @@ from datetime import datetime
 load_dotenv()
 
 class AnthropicAdapter(ProviderAdapter):
-    def __init__(self, model_name: str, max_tokens: int = 4024):
-        # Initialize VertexAI model
-        self.model = self.init_client()
-        self.model_name = model_name
-        self.max_tokens = max_tokens
-
     def init_client(self):
         """
         Initialize the Anthropic model
         """
-        
         if not os.environ.get("ANTHROPIC_API_KEY"):
             raise ValueError("ANTHROPIC_API_KEY not found in environment variables")
 
@@ -42,10 +35,9 @@ class AnthropicAdapter(ProviderAdapter):
         response = self.chat_completion(messages)
         end_time = datetime.utcnow()
 
-        # Calculate costs based on Anthropic's pricing
-        # These rates should be moved to a config file in production
-        input_cost_per_token = 0.0000163  # $0.0163/1K tokens for Claude 3 Sonnet
-        output_cost_per_token = 0.0000551  # $0.0551/1K tokens for Claude 3 Sonnet
+        # Use pricing from model config
+        input_cost_per_token = self.model_config.pricing.input / 1_000_000  # Convert from per 1M tokens
+        output_cost_per_token = self.model_config.pricing.output / 1_000_000  # Convert from per 1M tokens
         
         prompt_cost = response.usage.input_tokens * input_cost_per_token
         completion_cost = response.usage.output_tokens * output_cost_per_token
@@ -81,13 +73,11 @@ class AnthropicAdapter(ProviderAdapter):
         # Create metadata using our Pydantic models
         metadata = AttemptMetadata(
             model=self.model_name,
-            provider="anthropic",
+            provider=self.model_config.provider,
             start_timestamp=start_time,
             end_timestamp=end_time,
             choices=all_choices,
-            kwargs={
-                "max_tokens": self.max_tokens,
-            },
+            kwargs=self.model_config.kwargs,  # Use kwargs from model config
             usage=Usage(
                 prompt_tokens=response.usage.input_tokens,
                 completion_tokens=response.usage.output_tokens,
@@ -116,9 +106,13 @@ class AnthropicAdapter(ProviderAdapter):
         """
         Make a raw API call to Anthropic and return the response
         """
-        return self.model.messages.create(
+        max_tokens = self.model_config.kwargs.get('max_tokens', 4096)  # Get from config or use default
+        temperature = self.model_config.kwargs.get('temperature', 0.0)  # Get from config or use default
+        
+        return self.client.messages.create(
             model=self.model_name,
-            max_tokens=self.max_tokens,
+            max_tokens=max_tokens,
+            temperature=temperature,
             messages=messages,
             tools=tools
         )

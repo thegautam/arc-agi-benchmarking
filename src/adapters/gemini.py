@@ -12,28 +12,28 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 class GeminiAdapter(ProviderAdapter):
-    def __init__(self, model_name: str, max_tokens: int = 4024):
-        logger.debug(f"Initializing GeminiAdapter with model: {model_name}")
-        self.model = self.init_client(model_name)
-        self.model_name = model_name
-        self.max_tokens = max_tokens
-        self.generation_config = {
-            "max_output_tokens": max_tokens,
-            "temperature": 0.0
-        }
-
-    def init_client(self, model_name: str):
+    def init_client(self):
+        """
+        Initialize the Gemini model
+        """
         if not os.environ.get("GOOGLE_API_KEY"):
             raise ValueError("GOOGLE_API_KEY not found in environment variables")
         
         genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
-        return genai.GenerativeModel(model_name)
+        
+        # Use kwargs directly as generation config
+        self.generation_config = self.model_config.kwargs
+        
+        return genai.GenerativeModel(self.model_name)
 
     def make_prediction(self, prompt: str) -> Attempt:
+        """
+        Make a prediction with the Gemini model and return an Attempt object
+        """
         start_time = datetime.utcnow()
         
         # Get input token count before making the request
-        input_tokens = self.model.count_tokens(prompt)
+        input_tokens = self.client.count_tokens(prompt)
         logger.debug(f"Input tokens count: {input_tokens}")
         
         messages = [{"role": "user", "content": prompt}]
@@ -49,9 +49,9 @@ class GeminiAdapter(ProviderAdapter):
         output_tokens = usage_metadata.candidates_token_count
         total_tokens = usage_metadata.total_token_count
 
-        # Calculate costs based on Gemini's pricing
-        input_cost_per_token = 0.000001  # $0.001/1K tokens for Gemini Pro
-        output_cost_per_token = 0.000002  # $0.002/1K tokens for Gemini Pro
+        # Use pricing from model config
+        input_cost_per_token = self.model_config.pricing.input / 1_000_000  # Convert from per 1M tokens
+        output_cost_per_token = self.model_config.pricing.output / 1_000_000  # Convert from per 1M tokens
         
         prompt_cost = input_tokens * input_cost_per_token
         completion_cost = output_tokens * output_cost_per_token
@@ -85,14 +85,11 @@ class GeminiAdapter(ProviderAdapter):
         # Create metadata using our Pydantic models
         metadata = AttemptMetadata(
             model=self.model_name,
-            provider="gemini",
+            provider=self.model_config.provider,
             start_timestamp=start_time,
             end_timestamp=end_time,
             choices=all_choices,
-            kwargs={
-                "max_tokens": self.max_tokens,
-                "temperature": self.generation_config["temperature"]
-            },
+            kwargs=self.model_config.kwargs,
             usage=Usage(
                 prompt_tokens=input_tokens,
                 completion_tokens=output_tokens,
@@ -121,7 +118,7 @@ class GeminiAdapter(ProviderAdapter):
         # Convert to Gemini's message format
         history = [{"parts": [msg["content"]], "role": msg["role"]} for msg in messages]
         
-        response = self.model.generate_content(
+        response = self.client.generate_content(
             contents=history,
             generation_config=self.generation_config,
             stream=False
@@ -145,7 +142,7 @@ class GeminiAdapter(ProviderAdapter):
         }}
         """
 
-        response = self.model.generate_content(prompt)
+        response = self.client.generate_content(prompt)
         content = response.text.strip()
 
         # Handle possible code block formatting

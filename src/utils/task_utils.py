@@ -87,26 +87,55 @@ def save_submission(save_submission_dir: str, task_id: str, task_attempts) -> No
 
     return submission_file
 
+def normalize_model_name(name: str) -> str:
+    """
+    Normalize model name for comparison by:
+    1. Converting dots to dashes
+    2. Removing any date suffixes
+    3. Removing duplicate dashes
+    
+    Examples:
+        claude-3.5-sonnet -> claude-3-5-sonnet
+        claude-3-5-sonnet-20240315 -> claude-3-5-sonnet
+    """
+    # Remove any date suffix (assuming YYYYMMDD format)
+    name = re.sub(r'-\d{8}$', '', name)
+    
+    # Convert dots to dashes
+    name = name.replace('.', '-')
+    
+    # Clean up multiple dashes
+    name = re.sub(r'-+', '-', name)
+    
+    return name
+
 def read_models_config(model_name: str) -> ModelConfig:
     """
     Reads and parses the models.yml configuration file for a specific model.
+    Uses normalized name matching to find the base model configuration.
     
     Args:
-        model_name (str): The name of the model to get configuration for
+        model_name (str): The name of the model to get configuration for. Can include version/date suffixes.
         
     Returns:
         ModelConfig: The configuration for the specified model
         
     Raises:
-        ValueError: If the model name is not found in the configuration
+        ValueError: If no matching base model is found in the configuration
     """
     models_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models.yml")
     
     with open(models_file, 'r') as f:
         config = yaml.safe_load(f)
+    
+    normalized_input = normalize_model_name(model_name)
         
+    # Find the first model whose normalized name matches
     for model in config['models']:
-        if model['name'] == model_name:
-            return ModelConfig(**model)
+        if normalize_model_name(model['name']) == normalized_input:
+            # Use the provided model name but keep the base config
+            model_config = model.copy()
+            model_config['name'] = model_name
+            return ModelConfig(**model_config)
             
-    raise ValueError(f"Model '{model_name}' not found in configuration")
+    raise ValueError(f"No matching base model found in configuration for '{model_name}' (normalized: '{normalized_input}')")
