@@ -1,24 +1,18 @@
 from .provider import ProviderAdapter
-from src.models import ARCTaskOutput
+from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import anthropic
 import os
 from dotenv import load_dotenv
 import json
 from typing import List
+from datetime import datetime
 load_dotenv()
 
 class AnthropicAdapter(ProviderAdapter):
-    def __init__(self, model_name: str, max_tokens: int = 4024):
-        # Initialize VertexAI model
-        self.model = self.init_model()
-        self.model_name = model_name
-        self.max_tokens = max_tokens
-
-    def init_model(self):
+    def init_client(self):
         """
         Initialize the Anthropic model
         """
-        
         if not os.environ.get("ANTHROPIC_API_KEY"):
             raise ValueError("ANTHROPIC_API_KEY not found in environment variables")
 
@@ -28,28 +22,101 @@ class AnthropicAdapter(ProviderAdapter):
 
         return client
     
-    def make_prediction(self, prompt: str) -> str:
+    def make_prediction(self, prompt: str) -> Attempt:
         """
-        Make a prediction with the Anthropic model
+        Make a prediction with the Anthropic model and return an Attempt object
         """
-
+        start_time = datetime.utcnow()
+        
         messages = [
             {"role": "user", "content": prompt}
         ]
 
         response = self.chat_completion(messages)
+        end_time = datetime.utcnow()
 
-        return response.content[0].text
+        # Use pricing from model config
+        input_cost_per_token = self.model_config.pricing.input / 1_000_000  # Convert from per 1M tokens
+        output_cost_per_token = self.model_config.pricing.output / 1_000_000  # Convert from per 1M tokens
+        
+        prompt_cost = response.usage.input_tokens * input_cost_per_token
+        completion_cost = response.usage.output_tokens * output_cost_per_token
 
-    def chat_completion(self, messages, tools=[]) -> str:
-        response = self.model.messages.create(
+        # Convert input messages to choices
+        input_choices = [
+            Choice(
+                index=i,
+                message=Message(
+                    role=msg["role"],
+                    content=msg["content"]
+                )
+            )
+            for i, msg in enumerate(messages)
+        ]
+
+        # Convert Anthropic response to our schema
+        response_choices = [
+            Choice(
+                index=len(input_choices),
+                message=Message(
+                    role="assistant",
+                    content=content.text if content.type == "text" else json.dumps(content.input)
+                )
+            )
+            for content in response.content
+            if content.type in ["text", "tool_use"]
+        ]
+
+        # Combine input and response choices
+        all_choices = input_choices + response_choices
+
+        # Create metadata using our Pydantic models
+        metadata = AttemptMetadata(
             model=self.model_name,
-            max_tokens=self.max_tokens,
+            provider=self.model_config.provider,
+            start_timestamp=start_time,
+            end_timestamp=end_time,
+            choices=all_choices,
+            kwargs=self.model_config.kwargs,  # Use kwargs from model config
+            usage=Usage(
+                prompt_tokens=response.usage.input_tokens,
+                completion_tokens=response.usage.output_tokens,
+                total_tokens=response.usage.input_tokens + response.usage.output_tokens,
+                completion_tokens_details=CompletionTokensDetails(
+                    reasoning_tokens=0,  # Anthropic doesn't provide this breakdown
+                    accepted_prediction_tokens=response.usage.output_tokens,
+                    rejected_prediction_tokens=0  # Anthropic doesn't provide this
+                )
+            ),
+            cost=Cost(
+                prompt_cost=prompt_cost,
+                completion_cost=completion_cost,
+                total_cost=prompt_cost + completion_cost
+            )
+        )
+
+        attempt = Attempt(
+            metadata=metadata,
+            answer=response.content[0].text if response.content else ""
+        )
+
+        return attempt
+
+    def chat_completion(self, messages, tools=[]):
+        """
+        Make a raw API call to Anthropic and return the response
+        """
+        max_tokens = self.model_config.kwargs.get('max_tokens', 4096)  # Get from config or use default
+        temperature = self.model_config.kwargs.get('temperature', 0.0)  # Get from config or use default
+        
+        return self.client.messages.create(
+            model=self.model_name,
+            max_tokens=max_tokens,
+            temperature=temperature,
             messages=messages,
             tools=tools
         )
-        return response
-
+    
     def extract_json_from_response(self, input_response: str) -> List[List[int]]:
         tools = [
             {

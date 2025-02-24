@@ -1,8 +1,9 @@
 import os
-from src.models import ARCPair
-from typing import List
+from src.schemas import ARCPair, ModelConfig
+from typing import List, Dict, Any
 import json
 import re
+import yaml
 
 def get_train_pairs_from_task(data_dir, task_id) -> List[ARCPair]:
     """
@@ -76,13 +77,70 @@ def extract_json_from_code_block(response: str) -> List[List[int]]:
 
 def save_submission(save_submission_dir: str, task_id: str, task_attempts) -> None:
     """
-    Save the submission to a file
+    Save the submission to a file with full attempt metadata
     """
-    # Create the submission directory if it doesn't exist
     os.makedirs(save_submission_dir, exist_ok=True)
-    
     submission_file = os.path.join(save_submission_dir, f"{task_id}.json")
+    
     with open(submission_file, "w") as f:
         json.dump(task_attempts, f, indent=4)
 
     return submission_file
+
+def normalize_model_name(name: str) -> str:
+    """
+    Normalize model name for comparison by:
+    1. Converting dots to dashes
+    2. Removing any date suffixes
+    3. Removing 'latest' suffix
+    4. Removing duplicate dashes
+    
+    Examples:
+        claude-3.5-sonnet -> claude-3-5-sonnet
+        claude-3-5-sonnet-20240315 -> claude-3-5-sonnet
+        claude-3-5-sonnet-latest -> claude-3-5-sonnet
+    """
+    # Remove any date suffix (assuming YYYYMMDD format)
+    name = re.sub(r'-\d{8}$', '', name)
+    
+    # Remove 'latest' suffix
+    name = re.sub(r'-latest$', '', name)
+    
+    # Convert dots to dashes
+    name = name.replace('.', '-')
+    
+    # Clean up multiple dashes
+    name = re.sub(r'-+', '-', name)
+    
+    return name
+
+def read_models_config(model_name: str) -> ModelConfig:
+    """
+    Reads and parses the models.yml configuration file for a specific model.
+    Uses normalized name matching to find the base model configuration.
+    
+    Args:
+        model_name (str): The name of the model to get configuration for. Can include version/date suffixes.
+        
+    Returns:
+        ModelConfig: The configuration for the specified model
+        
+    Raises:
+        ValueError: If no matching base model is found in the configuration
+    """
+    models_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models.yml")
+    
+    with open(models_file, 'r') as f:
+        config = yaml.safe_load(f)
+    
+    normalized_input = normalize_model_name(model_name)
+        
+    # Find the first model whose normalized name matches
+    for model in config['models']:
+        if normalize_model_name(model['name']) == normalized_input:
+            # Use the provided model name but keep the base config
+            model_config = model.copy()
+            model_config['name'] = model_name
+            return ModelConfig(**model_config)
+            
+    raise ValueError(f"No matching base model found in configuration for '{model_name}' (normalized: '{normalized_input}')")

@@ -166,3 +166,5 @@ cython_debug/
 # local files
 plan.md
 .python-version
+.vscode/
+plan*.md

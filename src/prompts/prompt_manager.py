@@ -1,5 +1,5 @@
 from src.utils import convert_2d_list_to_string
-from src.models import ARCPair
+from src.schemas import ARCPair
 from typing import List
 
 def _load_prompt(prompt_name: str) -> str:

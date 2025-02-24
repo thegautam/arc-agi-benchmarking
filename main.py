@@ -2,7 +2,7 @@ import json
 from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter
 from dotenv import load_dotenv
 import src.utils as utils
-from src.models import ARCTaskOutput, ARCPair
+from src.schemas import ARCTaskOutput, ARCPair, Attempt
 from src.prompts.prompt_manager import convert_task_pairs_to_prompt
 from typing import List, Any, Optional
 import os
@@ -128,34 +128,27 @@ class ARCTester:
         prompt = convert_task_pairs_to_prompt(training_pairs, test_input)
 
         self.print_log(f"Making prediction for task")
-        response = self.provider.make_prediction(prompt)
+        response: Attempt = self.provider.make_prediction(prompt)
 
-        # print(response)
         return response
 
-    def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair) -> ARCTaskOutput:
+    def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair) -> Attempt:
         """
-        challenge_tasks: dict a list of tasks
-        task_id: str the id of the task we want to get a prediction for
-        test_input_index: the index of your test input. 96% of tests only have 1 input.
-
-        Given a task, predict the test output
+        Modified to return the full Attempt object instead of just the parsed answer
         """
+        # Get the initial response as an Attempt object
+        attempt: Attempt = self.predict_task_output(training_pairs, test_input)
 
-        # Get the string representation of your task
-        initial_response = self.predict_task_output(training_pairs, test_input)
-
-        # Attempt to parse and validate the JSON response
         try:
-            # Attempt to parse and validate the JSON response
-            json_response = self.parse_and_validate_json(initial_response)
+            # Parse the answer field but keep the full attempt object
+            parsed_answer = self.parse_and_validate_json(attempt.metadata.choices[0].message.content)
+            # Update the answer in the original attempt - now accepts List[List[int]]
+            attempt.answer = parsed_answer
+            return attempt
         except json.JSONDecodeError as e:
             self.print_log(f"JSON parsing failed: {e}")
-            # Handle the error (e.g., return a default value, retry, or raise an exception)
             raise
-        
-        return json_response
-    
+
     def generate_task_solution(self, data_dir, task_id):
         """
         data_dir: str, the directory of the data set to run
@@ -181,30 +174,26 @@ class ARCTester:
         # Go through each test pair to get a prediction. 96% of challenges have 1 pair.
         for t, pair in enumerate(test_input):
             self.print_log(f"Starting task {task_id}, Pair #{t+1}")
-
-            # Dictionary to store attempts for the current test pair
             pair_attempts = {}
 
             # Run through each prediction attempt
             for attempt in range(1, self.num_attempts + 1):
                 attempt_key = f"attempt_{attempt}"
-                pair_attempts[attempt_key] = None  # Initialize as None
+                pair_attempts[attempt_key] = None
 
-                # Try to get a prediction, with retries in case of failure
                 for retry in range(self.retry_attempts):
                     try:
                         self.print_log(f"    Predicting attempt #{attempt}, retry #{retry + 1}")
-                        prediction = self.get_task_prediction(
+                        # Now storing the full attempt object
+                        attempt_obj = self.get_task_prediction(
                             training_pairs=train_pairs,
                             test_input=pair
                         )
 
-                        if prediction is not None:
-                            self.print_log(f"    Prediction: {prediction}")
-                            pair_attempts[attempt_key] = prediction
-                            break  # Break the retry loop if prediction is successful
-                        else:
-                            self.print_log("    Prediction returned None, possibly due to rate limiting")
+                        if attempt_obj is not None:
+                            self.print_log(f"    Prediction: {attempt_obj.answer}")
+                            pair_attempts[attempt_key] = attempt_obj.model_dump(mode='json')
+                            break
                     except Exception as e:
                         self.print_log(f"Retrying: {e}")
 
