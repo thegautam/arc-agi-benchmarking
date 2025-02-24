@@ -5,6 +5,7 @@ import json
 from openai import OpenAI
 from datetime import datetime
 from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
+from typing import Optional
 
 load_dotenv()
 
@@ -19,9 +20,14 @@ class OpenAIAdapter(ProviderAdapter):
         client = OpenAI()
         return client
 
-    def make_prediction(self, prompt: str) -> Attempt:
+    def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None) -> Attempt:
         """
         Make a prediction with the OpenAI model and return an Attempt object
+        
+        Args:
+            prompt: The prompt to send to the model
+            task_id: Optional task ID to include in metadata
+            test_id: Optional test ID to include in metadata
         """
         start_time = datetime.utcnow()
         
@@ -42,19 +48,18 @@ class OpenAIAdapter(ProviderAdapter):
         # Convert input messages to choices
         input_choices = [
             Choice(
-                index=i,
+                index=0,
                 message=Message(
-                    role=msg["role"],
-                    content=msg["content"]
+                    role="user",
+                    content=prompt
                 )
             )
-            for i, msg in enumerate(messages)
         ]
 
         # Convert OpenAI response to our schema
         response_choices = [
             Choice(
-                index=len(input_choices),
+                index=1,
                 message=Message(
                     role=response.choices[0].message.role,
                     content=response.choices[0].message.content
@@ -65,9 +70,9 @@ class OpenAIAdapter(ProviderAdapter):
         # Combine input and response choices
         all_choices = input_choices + response_choices
 
-        # Create metadata using our Pydantic models
+        # Create metadata
         metadata = AttemptMetadata(
-            model=self.model_name,
+            model=self.model_config.model_name,
             provider=self.model_config.provider,
             start_timestamp=start_time,
             end_timestamp=end_time,
@@ -78,16 +83,19 @@ class OpenAIAdapter(ProviderAdapter):
                 completion_tokens=response.usage.completion_tokens,
                 total_tokens=response.usage.total_tokens,
                 completion_tokens_details=CompletionTokensDetails(
-                    reasoning_tokens=0,  # OpenAI doesn't provide this breakdown
+                    reasoning_tokens=0,
                     accepted_prediction_tokens=response.usage.completion_tokens,
-                    rejected_prediction_tokens=0  # OpenAI doesn't provide this
+                    rejected_prediction_tokens=0
                 )
             ),
             cost=Cost(
                 prompt_cost=prompt_cost,
                 completion_cost=completion_cost,
                 total_cost=prompt_cost + completion_cost
-            )
+            ),
+            task_id=task_id,
+            test_id=test_id,
+            config_name=self.model_config.name
         )
 
         attempt = Attempt(
@@ -99,7 +107,7 @@ class OpenAIAdapter(ProviderAdapter):
 
     def chat_completion(self, messages: list) -> str:
         return self.client.chat.completions.create(
-            model=self.model_name,
+            model=self.model_config.model_name,
             messages=messages,
             **self.model_config.kwargs
         )

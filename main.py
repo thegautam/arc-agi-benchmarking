@@ -11,25 +11,25 @@ import argparse
 load_dotenv()
 
 class ARCTester:
-    def __init__(self, provider: str, model_name: str, save_submission_dir: str, overwrite_submission: bool, print_submission: bool, num_attempts: int, retry_attempts: int, print_logs: bool, config_name: Optional[str] = None):
-        self.provider = self.init_provider(provider, model_name, config_name)
+    def __init__(self, provider: str, config: str, save_submission_dir: str, overwrite_submission: bool, print_submission: bool, num_attempts: int, retry_attempts: int, print_logs: bool):
+        self.provider = self.init_provider(provider, config)
         self.save_submission_dir = save_submission_dir
         self.overwrite_submission = overwrite_submission
         self.print_submission = print_submission
         self.num_attempts = num_attempts
         self.retry_attempts = retry_attempts
         self.print_logs = print_logs
-        self.config_name = config_name
+        self.config = config
 
-    def init_provider(self, provider: str, model_name: str, config_name: Optional[str] = None) -> ProviderAdapter:
+    def init_provider(self, provider: str, config: str) -> ProviderAdapter:
         if provider == "anthropic":
-            return AnthropicAdapter(model_name, config_name)
+            return AnthropicAdapter(config)
         elif provider == "openai":
-            return OpenAIAdapter(model_name, config_name)
+            return OpenAIAdapter(config)
         elif provider == "deepseek":
-            return DeepseekAdapter(model_name, config_name)
+            return DeepseekAdapter(config)
         elif provider == "gemini":
-            return GeminiAdapter(model_name, config_name)
+            return GeminiAdapter(config)
         else:
             raise ValueError(f"Unsupported provider: {provider}")
         
@@ -162,13 +162,8 @@ class ARCTester:
         self.print_log(f"Running task {task_id}")
         utils.validate_data(data_dir, task_id)
 
-        # Extract test_id from data_dir path
-        # Use everything after the "data" directory in the path
-        # For example, from "data/arc-agi/data/evaluation", we want "arc-agi/data/evaluation"
-        if "data/" in data_dir:
-            test_id = data_dir.split("data/", 1)[1]
-        else:
-            test_id = data_dir  # Fallback if "data/" is not in the path
+        # Use the config name as the test_id
+        test_id = self.config
         
         self.print_log(f"Using test_id: {test_id}")
 
@@ -234,13 +229,12 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", type=str, help="Data set to run. Configure in config/config.json")
     parser.add_argument("--task_id", type=str, help="Specific task ID to run")
     parser.add_argument("--provider", type=str, default="anthropic", help="Provider to use")
-    parser.add_argument("--model", type=str, default="claude-3-5-sonnet-20241022", help="Model to use")
-    parser.add_argument("--config_name", type=str, help="Optional configuration name for the model")
+    parser.add_argument("--config", type=str, required=True, help="Configuration name (e.g., 'o1_high', 'gemini_short_response')")
     parser.add_argument(
         "--save_submission_dir",
         type=str,
         metavar="FOLDER_NAME",
-        help="Folder name to save the submissions under Ex: 'submissions/claude-3-5-sonnet-20241022'"
+        help="Folder name to save the submissions under Ex: 'submissions/o1_high'"
     )
     parser.add_argument("--overwrite_submission", action="store_true", help="Overwrite the submission if it already exists")
     parser.add_argument("--print_submission", action="store_true", help="Print the submission to the console after each task")
@@ -252,14 +246,13 @@ if __name__ == "__main__":
 
     arc_solver = ARCTester(
         provider=args.provider,
-        model_name=args.model,
+        config=args.config,
         save_submission_dir=args.save_submission_dir, 
         overwrite_submission=args.overwrite_submission,
         print_submission=args.print_submission,
         num_attempts=args.num_attempts,
         retry_attempts=args.retry_attempts,
-        print_logs=args.print_logs,
-        config_name=args.config_name
+        print_logs=args.print_logs
     )
    
     arc_solver.generate_task_solution(

@@ -6,6 +6,7 @@ from openai import OpenAI
 from datetime import datetime
 from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import logging
+from typing import Optional
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ class DeepseekAdapter(ProviderAdapter):
         client = OpenAI(api_key=os.environ.get("DEEPSEEK_API_KEY"), base_url="https://api.deepseek.com")
         return client
 
-    def make_prediction(self, prompt: str) -> Attempt:
+    def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None) -> Attempt:
         """
         Make a prediction with the Deepseek model and return an Attempt object
         """
@@ -69,7 +70,7 @@ class DeepseekAdapter(ProviderAdapter):
 
         # Create metadata using our Pydantic models
         metadata = AttemptMetadata(
-            model=self.model_name,
+            model=self.model_config.model_name,
             provider=self.model_config.provider,
             start_timestamp=start_time,
             end_timestamp=end_time,
@@ -89,7 +90,10 @@ class DeepseekAdapter(ProviderAdapter):
                 prompt_cost=prompt_cost,
                 completion_cost=completion_cost,
                 total_cost=prompt_cost + completion_cost
-            )
+            ),
+            task_id=task_id,
+            test_id=test_id,
+            config_name=self.model_config.name
         )
 
         attempt = Attempt(
@@ -101,7 +105,7 @@ class DeepseekAdapter(ProviderAdapter):
 
     def chat_completion(self, messages: str) -> str:
         return self.client.chat.completions.create(
-            model=self.model_name,
+            model=self.model_config.model_name,
             messages=messages,
             **self.model_config.kwargs
         )

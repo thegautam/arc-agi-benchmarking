@@ -24,11 +24,16 @@ class GeminiAdapter(ProviderAdapter):
         # Use kwargs directly as generation config
         self.generation_config = self.model_config.kwargs
         
-        return genai.GenerativeModel(self.model_name)
+        return genai.GenerativeModel(self.model_config.model_name)
 
-    def make_prediction(self, prompt: str) -> Attempt:
+    def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None) -> Attempt:
         """
         Make a prediction with the Gemini model and return an Attempt object
+        
+        Args:
+            prompt: The prompt to send to the model
+            task_id: Optional task ID to include in metadata
+            test_id: Optional test ID to include in metadata
         """
         start_time = datetime.utcnow()
         
@@ -84,7 +89,7 @@ class GeminiAdapter(ProviderAdapter):
 
         # Create metadata using our Pydantic models
         metadata = AttemptMetadata(
-            model=self.model_name,
+            model=self.model_config.model_name,
             provider=self.model_config.provider,
             start_timestamp=start_time,
             end_timestamp=end_time,
@@ -104,7 +109,10 @@ class GeminiAdapter(ProviderAdapter):
                 prompt_cost=prompt_cost,
                 completion_cost=completion_cost,
                 total_cost=prompt_cost + completion_cost
-            )
+            ),
+            task_id=task_id,  # Add task_id to metadata
+            test_id=test_id,  # Add test_id to metadata
+            config_name=self.model_config.name  # Add config_name to metadata
         )
 
         attempt = Attempt(
