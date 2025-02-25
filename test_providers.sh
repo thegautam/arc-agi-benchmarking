@@ -11,13 +11,13 @@ run_test() {
     
     echo "🔄 Testing provider: ${provider}, model: ${model}, task: ${task_id}, config: ${config_name:-default}"
     
-    # Build the command with optional config_name
-    local cmd="python3 -m main --data_dir data/arc-agi/data/evaluation --provider \"${provider}\" --config \"${config_name}\" --task_id \"${task_id}\" --save_submission_dir . --print_logs"
+    # Build the command with model as the config
+    local cmd="python3 -m main --data_dir data/arc-agi/data/evaluation --provider \"${provider}\" --config \"${model}\" --task_id \"${task_id}\" --save_submission_dir . --print_logs"
     
-    # Add config_name if provided
-    if [ -n "$config_name" ]; then
-        cmd="$cmd --config_name \"${config_name}\""
-    fi
+    # Add config_name if provided (for future use if needed)
+    # if [ -n "$config_name" ]; then
+    #     cmd="$cmd --config_name \"${config_name}\""
+    # fi
     
     # Execute the command
     if eval $cmd; then
