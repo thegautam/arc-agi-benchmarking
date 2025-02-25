@@ -113,15 +113,12 @@ class AnthropicAdapter(ProviderAdapter):
         """
         Make a raw API call to Anthropic and return the response
         """
-        max_tokens = self.model_config.kwargs.get('max_tokens', 4096)  # Get from config or use default
-        temperature = self.model_config.kwargs.get('temperature', 0.0)  # Get from config or use default
         
         return self.client.messages.create(
             model=self.model_config.model_name,
-            max_tokens=max_tokens,
-            temperature=temperature,
             messages=messages,
-            tools=tools
+            tools=tools,
+            **self.model_config.kwargs
         )
     
     def extract_json_from_response(self, input_response: str) -> List[List[int]]:
