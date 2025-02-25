@@ -5,6 +5,7 @@ import json
 from openai import OpenAI
 from datetime import datetime
 from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
+from typing import Optional
 
 load_dotenv()
 
@@ -19,9 +20,14 @@ class OpenAIAdapter(ProviderAdapter):
         client = OpenAI()
         return client
 
-    def make_prediction(self, prompt: str) -> Attempt:
+    def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None) -> Attempt:
         """
         Make a prediction with the OpenAI model and return an Attempt object
+        
+        Args:
+            prompt: The prompt to send to the model
+            task_id: Optional task ID to include in metadata
+            test_id: Optional test ID to include in metadata
         """
         start_time = datetime.utcnow()
         
@@ -42,19 +48,18 @@ class OpenAIAdapter(ProviderAdapter):
         # Convert input messages to choices
         input_choices = [
             Choice(
-                index=i,
+                index=0,
                 message=Message(
-                    role=msg["role"],
-                    content=msg["content"]
+                    role="user",
+                    content=prompt
                 )
             )
-            for i, msg in enumerate(messages)
         ]
 
         # Convert OpenAI response to our schema
         response_choices = [
             Choice(
-                index=len(input_choices),
+                index=1,
                 message=Message(
                     role=response.choices[0].message.role,
                     content=response.choices[0].message.content
@@ -65,9 +70,9 @@ class OpenAIAdapter(ProviderAdapter):
         # Combine input and response choices
         all_choices = input_choices + response_choices
 
-        # Create metadata using our Pydantic models
+        # Create metadata
         metadata = AttemptMetadata(
-            model=self.model_name,
+            model=self.model_config.model_name,
             provider=self.model_config.provider,
             start_timestamp=start_time,
             end_timestamp=end_time,
@@ -78,16 +83,18 @@ class OpenAIAdapter(ProviderAdapter):
                 completion_tokens=response.usage.completion_tokens,
                 total_tokens=response.usage.total_tokens,
                 completion_tokens_details=CompletionTokensDetails(
-                    reasoning_tokens=0,  # OpenAI doesn't provide this breakdown
+                    reasoning_tokens=0,
                     accepted_prediction_tokens=response.usage.completion_tokens,
-                    rejected_prediction_tokens=0  # OpenAI doesn't provide this
+                    rejected_prediction_tokens=0
                 )
             ),
             cost=Cost(
                 prompt_cost=prompt_cost,
                 completion_cost=completion_cost,
                 total_cost=prompt_cost + completion_cost
-            )
+            ),
+            task_id=task_id,
+            test_id=test_id
         )
 
         attempt = Attempt(
@@ -99,26 +106,24 @@ class OpenAIAdapter(ProviderAdapter):
 
     def chat_completion(self, messages: list) -> str:
         return self.client.chat.completions.create(
-            model=self.model_name,
+            model=self.model_config.model_name,
             messages=messages,
             **self.model_config.kwargs
         )
 
     def extract_json_from_response(self, input_response: str) -> list[list[int]] | None:
         prompt = f"""
-You are a helpful assistant. Extract only the JSON of the test output from the following response. 
-Do not include any explanation or additional text; only return valid JSON.
+You are a helpful assistant. Extract only the JSON array of arrays from the following response. 
+Do not include any explanation, formatting, or additional text.
+Return ONLY the valid JSON array of arrays with integers.
 
 Response:
 {input_response}
 
-The JSON should be in this format:
-{{
-"response": [
-    [1, 2, 3],
-    [4, 5, 6]
-]
-}}
+Example of expected output format:
+[[1, 2, 3], [4, 5, 6]]
+
+IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting.
 """
         completion = self.chat_completion(
             messages=[{"role": "user", "content": prompt}],
@@ -126,15 +131,48 @@ The JSON should be in this format:
 
         assistant_content = completion.choices[0].message.content.strip()
 
-        # Some models like to wrap the response in a code block
-        if assistant_content.startswith("```json"):
-            assistant_content = "\n".join(assistant_content.split("\n")[1:])
+        # Try to extract JSON from various formats
+        # Remove markdown code blocks if present
+        if "```" in assistant_content:
+            # Extract content between code blocks
+            code_blocks = assistant_content.split("```")
+            for block in code_blocks:
+                if block.strip() and not block.strip().startswith("json"):
+                    assistant_content = block.strip()
+                    break
         
-        if assistant_content.endswith("```"):
-            assistant_content = "\n".join(assistant_content.split("\n")[:-1])
+        # Remove any leading/trailing text that's not part of the JSON
+        assistant_content = assistant_content.strip()
+        
+        # Try to find array start/end if there's surrounding text
+        if assistant_content and not assistant_content.startswith("["):
+            start_idx = assistant_content.find("[[")
+            if start_idx >= 0:
+                end_idx = assistant_content.rfind("]]") + 2
+                if end_idx > start_idx:
+                    assistant_content = assistant_content[start_idx:end_idx]
 
         try:
-            json_entities = json.loads(assistant_content)
-            return json_entities.get("response")
+            # Try direct parsing first
+            json_result = json.loads(assistant_content)
+            if isinstance(json_result, list) and all(isinstance(item, list) for item in json_result):
+                return json_result
+            
+            # If we got a dict with a response key, use that
+            if isinstance(json_result, dict) and "response" in json_result:
+                return json_result.get("response")
+                
+            return None
         except json.JSONDecodeError:
+            # If direct parsing fails, try to find and extract just the array part
+            try:
+                # Look for array pattern and extract it
+                import re
+                array_pattern = r'\[\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\](?:\s*,\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\])*\s*\]'
+                match = re.search(array_pattern, assistant_content)
+                if match:
+                    return json.loads(match.group(0))
+            except:
+                pass
+            
             return None

@@ -48,11 +48,14 @@ class AttemptMetadata(BaseModel):
     kwargs: Dict[str, Any]
     usage: Usage
     cost: Cost
+    task_id: Optional[str] = None
+    test_id: Optional[str] = None
     
-    class Config:
-        json_encoders = {
+    model_config = {
+        'json_encoders': {
             datetime: lambda v: v.isoformat()
         }
+    }
 
 class Attempt(BaseModel):
     answer: Union[str, List[List[int]]]
@@ -72,10 +75,11 @@ class Attempt(BaseModel):
             
         return values
     
-    class Config:
-        json_encoders = {
+    model_config = {
+        'json_encoders': {
             datetime: lambda v: v.isoformat()
         }
+    }
 
 class Attempts(BaseModel):
     attempts: List[Attempt]
@@ -87,33 +91,41 @@ class ModelPricing(BaseModel):
 
 class ModelConfig(BaseModel):
     """
-    A model configuration used to populate a models kwargs and calculatepricing metadata. 
+    A model configuration used to populate a models kwargs and calculate pricing metadata. 
     Points to model.yml
     """
-    name: str
+    name: str  # This is now the config_name
+    model_name: str  # The actual model name to use with the provider's API
     provider: str
     pricing: ModelPricing
     kwargs: Dict[str, Any] = {}
-
+    
+    model_config = {
+        'protected_namespaces': (),
+        'extra': 'allow'
+    }
+    
     @model_validator(mode='before')
     @classmethod
-    def build_kwargs(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        """Collects any extra fields into kwargs"""
+    def extract_kwargs(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract all extra fields into kwargs"""
         if not isinstance(values, dict):
             return values
             
         kwargs = {}
-        known_fields = {'name', 'provider', 'pricing', 'kwargs'}
+        known_fields = {'name', 'provider', 'pricing', 'kwargs', 'model_name'}
         
         for field_name, value in values.items():
             if field_name not in known_fields:
                 kwargs[field_name] = value
                 
-        if 'kwargs' in values:
-            kwargs.update(values['kwargs'])
-                
-        values['kwargs'] = kwargs
+        # Update the kwargs field with our extracted values
+        if kwargs:
+            values['kwargs'] = {**kwargs, **values.get('kwargs', {})}
+            
+            # Remove the extracted fields from the top level
+            for field_name in kwargs:
+                if field_name in values:
+                    del values[field_name]
+                    
         return values
-
-    class Config:
-        extra = "allow"  # Allow extra fields to be stored in kwargs

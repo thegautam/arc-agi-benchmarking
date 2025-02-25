@@ -77,7 +77,10 @@ def extract_json_from_code_block(response: str) -> List[List[int]]:
 
 def save_submission(save_submission_dir: str, task_id: str, task_attempts) -> None:
     """
-    Save the submission to a file with full attempt metadata
+    Save the submission to a file with full attempt metadata.
+    
+    The save_submission_dir should be a directory path that includes the config name,
+    e.g., 'submissions/o1_short_response' or 'submissions/gemini_pro'.
     """
     os.makedirs(save_submission_dir, exist_ok=True)
     submission_file = os.path.join(save_submission_dir, f"{task_id}.json")
@@ -114,33 +117,27 @@ def normalize_model_name(name: str) -> str:
     
     return name
 
-def read_models_config(model_name: str) -> ModelConfig:
+def read_models_config(config: str) -> ModelConfig:
     """
-    Reads and parses the models.yml configuration file for a specific model.
-    Uses normalized name matching to find the base model configuration.
+    Reads and parses the models.yml configuration file for a specific configuration.
     
     Args:
-        model_name (str): The name of the model to get configuration for. Can include version/date suffixes.
+        config (str): The configuration name to look up (e.g., 'o1_high', 'gemini_short_response')
         
     Returns:
         ModelConfig: The configuration for the specified model
         
     Raises:
-        ValueError: If no matching base model is found in the configuration
+        ValueError: If no matching configuration is found
     """
     models_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models.yml")
     
     with open(models_file, 'r') as f:
-        config = yaml.safe_load(f)
+        config_data = yaml.safe_load(f)
     
-    normalized_input = normalize_model_name(model_name)
-        
-    # Find the first model whose normalized name matches
-    for model in config['models']:
-        if normalize_model_name(model['name']) == normalized_input:
-            # Use the provided model name but keep the base config
-            model_config = model.copy()
-            model_config['name'] = model_name
-            return ModelConfig(**model_config)
+    # Look for a model with the name matching the config parameter
+    for model in config_data['models']:
+        if model.get('name') == config:
+            return ModelConfig(**model)
             
-    raise ValueError(f"No matching base model found in configuration for '{model_name}' (normalized: '{normalized_input}')")
+    raise ValueError(f"No matching configuration found for '{config}'")
