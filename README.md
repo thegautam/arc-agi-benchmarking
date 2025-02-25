@@ -188,35 +188,103 @@ The `test_providers.sh` script includes examples of testing the same model with 
 New models are defined in `src/models.yml`. Each model requires:
 
 ```yaml
-- name: "model-name"
-  provider: "provider-name"
-  max_tokens: 4024  # or appropriate limit
-  temperature: 0.0  # optional
-  pricing:
-    date: "YYYY-MM-DD"
-    input: 0.00   # Cost per 1M input tokens
-    output: 0.00  # Cost per 1M output tokens
+models:
+  - name: "model_config_name"     # A unique identifier for this model configuration
+    model_name: "actual-model-name"  # The actual model name used by the provider's API
+    provider: "provider-name"
+    max_tokens: 4024  # or appropriate limit
+    temperature: 0.0  # optional
+    pricing:
+      date: "YYYY-MM-DD"
+      input: 0.00   # Cost per 1M input tokens
+      output: 0.00  # Cost per 1M output tokens
 ```
+
+### 2. Adding Configurations to Models
 
 #### Multiple Configurations for the Same Model
 
-You can define multiple configurations for the same model by adding the `config_name` field:
+In `models.yml`, you can create multiple configurations for the same underlying model by defining separate entries with different `name` values but the same `model_name`:
 
 ```yaml
-- name: "model-name"
-  provider: "provider-name"
-  config_name: "configuration-name"  # e.g., "high_temp"
-  max_tokens: 4024
-  temperature: 0.7  # Different parameter values
-  pricing:
-    date: "YYYY-MM-DD"
-    input: 0.00
-    output: 0.00
+models:
+  # Configuration for short responses
+  - name: "o1_short_response"
+    model_name: "o1"
+    provider: "openai"
+    max_completion_tokens: 1024  # Shorter response limit
+    pricing:
+      date: "2025-02-23"
+      input: 15.00
+      output: 60.00
+
+  # Configuration for long responses
+  - name: "o1_long_response"
+    model_name: "o1"
+    provider: "openai"
+    max_completion_tokens: 4024  # Longer response limit
+    pricing:
+      date: "2025-02-23"
+      input: 15.00
+      output: 60.00
 ```
 
-This allows testing the same model with different parameter settings.
+When running the model, you specify the configuration name as the model parameter:
 
-### 2. Create Provider Adapter
+```bash
+# Run with short response configuration
+python3 -m main --provider openai --model o1_short_response --task_id sample_task_id
+
+# Run with long response configuration
+python3 -m main --provider openai --model o1_long_response --task_id sample_task_id
+```
+
+#### Using Model-Specific Parameters
+
+You can add any model-specific parameters supported by the provider's API:
+
+```yaml
+models:
+  - name: "gemini_pro"
+    model_name: "gemini-1.5-pro"
+    provider: "gemini"
+    max_output_tokens: 4024  # Provider-specific parameter
+    temperature: 0.0
+    pricing:
+      date: "2025-02-23"
+      input: 1.25
+      output: 5.00
+```
+
+Note how different providers may use different parameter names (e.g., `max_tokens`, `max_completion_tokens`, or `max_output_tokens`) depending on their API requirements.
+
+#### Using Configurations in Batch Processing
+
+When running batch tests with multiple configurations:
+
+```bash
+# Test with short response configuration
+parallel --jobs 20 python3 -m main --data_dir data/arc-agi/data/evaluation --provider openai --model o1_short_response --task_id {} --save_submission_dir submissions/o1_short :::: ./data/task_lists/public_evaluation.txt
+
+# Test with long response configuration
+parallel --jobs 20 python3 -m main --data_dir data/arc-agi/data/evaluation --provider openai --model o1_long_response --task_id {} --save_submission_dir submissions/o1_long :::: ./data/task_lists/public_evaluation.txt
+```
+
+#### Comparing Configuration Results
+
+After running tests with different configurations, you can compare their performance:
+
+```bash
+# Score short response configuration
+python3 -m src.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/o1_short --print_logs --results_dir results/o1_short
+
+# Score long response configuration
+python3 -m src.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/o1_long --print_logs --results_dir results/o1_long
+```
+
+This allows you to systematically evaluate how different parameter settings affect model performance on ARC-AGI tasks.
+
+### 3. Create Provider Adapter
 
 1. Create a new file in `src/adapters/` (e.g., `my_provider.py`)
 2. Implement the `ProviderAdapter` class:
@@ -243,7 +311,7 @@ This allows testing the same model with different parameter settings.
    - Convert provider-specific responses to standardized formats
    - Track and report token usage and costs
 
-### 3. Test New Provider
+### 4. Test New Provider
 
 1. Add test cases to `test_providers.sh`
 2. Test with sample tasks:
