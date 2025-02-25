@@ -57,7 +57,7 @@ models:
       output: 4.40
 
   - name: "claude_sonnet"
-    model_name: "claude-3.5-sonnet"
+    model_name: "claude-3-5-sonnet-latest"
     provider: "anthropic"
     max_tokens: 4024
     temperature: 0.0
@@ -67,7 +67,7 @@ models:
       output: 15.00 # Single output price per 1M tokens.
 
   - name: "claude_haiku"
-    model_name: "claude-3.5-haiku"
+    model_name: "claude-3-5-haiku-latest"
     provider: "anthropic"
     max_tokens: 4024
     temperature: 0.0
@@ -77,7 +77,7 @@ models:
       output: 4.00  # Single output price per 1M tokens.
 
   - name: "claude_opus"
-    model_name: "claude-3-opus"
+    model_name: "claude-3-opus-latest"
     provider: "anthropic"
     max_tokens: 4024
     temperature: 0.0

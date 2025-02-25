@@ -113,19 +113,17 @@ class OpenAIAdapter(ProviderAdapter):
 
     def extract_json_from_response(self, input_response: str) -> list[list[int]] | None:
         prompt = f"""
-You are a helpful assistant. Extract only the JSON of the test output from the following response. 
-Do not include any explanation or additional text; only return valid JSON.
+You are a helpful assistant. Extract only the JSON array of arrays from the following response. 
+Do not include any explanation, formatting, or additional text.
+Return ONLY the valid JSON array of arrays with integers.
 
 Response:
 {input_response}
 
-The JSON should be in this format:
-{{
-"response": [
-    [1, 2, 3],
-    [4, 5, 6]
-]
-}}
+Example of expected output format:
+[[1, 2, 3], [4, 5, 6]]
+
+IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting.
 """
         completion = self.chat_completion(
             messages=[{"role": "user", "content": prompt}],
@@ -133,15 +131,48 @@ The JSON should be in this format:
 
         assistant_content = completion.choices[0].message.content.strip()
 
-        # Some models like to wrap the response in a code block
-        if assistant_content.startswith("```json"):
-            assistant_content = "\n".join(assistant_content.split("\n")[1:])
+        # Try to extract JSON from various formats
+        # Remove markdown code blocks if present
+        if "```" in assistant_content:
+            # Extract content between code blocks
+            code_blocks = assistant_content.split("```")
+            for block in code_blocks:
+                if block.strip() and not block.strip().startswith("json"):
+                    assistant_content = block.strip()
+                    break
         
-        if assistant_content.endswith("```"):
-            assistant_content = "\n".join(assistant_content.split("\n")[:-1])
+        # Remove any leading/trailing text that's not part of the JSON
+        assistant_content = assistant_content.strip()
+        
+        # Try to find array start/end if there's surrounding text
+        if assistant_content and not assistant_content.startswith("["):
+            start_idx = assistant_content.find("[[")
+            if start_idx >= 0:
+                end_idx = assistant_content.rfind("]]") + 2
+                if end_idx > start_idx:
+                    assistant_content = assistant_content[start_idx:end_idx]
 
         try:
-            json_entities = json.loads(assistant_content)
-            return json_entities.get("response")
+            # Try direct parsing first
+            json_result = json.loads(assistant_content)
+            if isinstance(json_result, list) and all(isinstance(item, list) for item in json_result):
+                return json_result
+            
+            # If we got a dict with a response key, use that
+            if isinstance(json_result, dict) and "response" in json_result:
+                return json_result.get("response")
+                
+            return None
         except json.JSONDecodeError:
+            # If direct parsing fails, try to find and extract just the array part
+            try:
+                # Look for array pattern and extract it
+                import re
+                array_pattern = r'\[\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\](?:\s*,\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\])*\s*\]'
+                match = re.search(array_pattern, assistant_content)
+                if match:
+                    return json.loads(match.group(0))
+            except:
+                pass
+            
             return None
