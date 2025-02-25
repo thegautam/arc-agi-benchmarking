@@ -142,7 +142,16 @@ class ARCTester:
 
         try:
             # Parse the answer field but keep the full attempt object
-            parsed_answer = self.parse_and_validate_json(attempt.metadata.choices[0].message.content)
+            # Always use the last choice in the array (which should be the assistant's response)
+            if attempt.metadata.choices:
+                last_choice = attempt.metadata.choices[-1]
+                if last_choice.message.content:
+                    parsed_answer = self.parse_and_validate_json(last_choice.message.content)
+                else:
+                    raise ValueError("Assistant response is empty")
+            else:
+                raise ValueError("No choices found in response")
+            
             # Update the answer in the original attempt - now accepts List[List[int]]
             attempt.answer = parsed_answer
             return attempt
