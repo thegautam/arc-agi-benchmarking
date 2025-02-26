@@ -14,11 +14,11 @@ This repo contains code for testing model baselines on ARC-AGI. The input data i
 ## Testing a single task
 
 To test a single task, run:
-`python3 -m main --data_dir data/arc-agi/data/evaluation --provider anthropic --model claude-3-5-sonnet-20241022 --task_id 0a1d4ef5 --print_logs`
+`python3 -m main --data_dir data/arc-agi/data/evaluation --config claude_sonnet--task_id 0a1d4ef5 --print_logs`
 
 Use the optional parameters to save and print the submission:
 
-`python3 -m main --data_dir data/arc-agi/data/evaluation --provider anthropic --model claude-3-5-sonnet-20241022 --task_id {} --save_submission_dir submissions/claude_sonnet_20241022 --print_logs`
+`python3 -m main --data_dir data/arc-agi/data/evaluation --config claude_sonnet --task_id {} --save_submission_dir submissions/claude_sonnet_20241022 --print_logs`
 
 This will write one `<id>.json` file per task.
 
@@ -29,7 +29,7 @@ For example with the `parallel` [command](https://www.gnu.org/software/parallel/
 
 `brew install parallel`
 
-`parallel --jobs 20 --progress python3 -m main --data_dir data/arc-agi/data/evaluation --provider anthropic --model claude-3-5-sonnet-20241022 --task_id {} --save_submission_dir submissions/claude_sonnet_20241022 --print_logs :::: ./data/task_lists/public_evaluation.txt`
+`parallel --jobs 20 --progress python3 -m main --data_dir data/arc-agi/data/evaluation --config claude_sonnet --task_id {} --save_submission_dir submissions/claude_sonnet_20241022 --print_logs :::: ./data/task_lists/public_evaluation.txt`
 
 Note: In order to use parllel you'll need a list of task ids. `generate_tasks_list.py` helps with this. Public data task ids are already supplied.
 
@@ -170,11 +170,11 @@ The tests ensure that:
 
 ### Testing Different Model Configurations
 
-You can test the same model with different configurations by using the `--config_name` parameter:
+You can test the same model with different configurations by using the `--config` parameter:
 
 ```bash
 # Test a model with a specific configuration
-python3 -m main --data_dir data/arc-agi/data/evaluation --provider openai --model o1 --config_name high_temp --task_id sample_task_id --print_logs
+python3 -m main --data_dir data/arc-agi/data/evaluation --config claude_sonnet --task_id sample_task_id --print_logs
 ```
 
 The `test_providers.sh` script includes examples of testing the same model with different configurations, such as:
@@ -233,10 +233,10 @@ When running the model, you specify the configuration name as the model paramete
 
 ```bash
 # Run with short response configuration
-python3 -m main --provider openai --model o1_short_response --task_id sample_task_id
+python3 -m main --config o1_short_response --task_id sample_task_id
 
 # Run with long response configuration
-python3 -m main --provider openai --model o1_long_response --task_id sample_task_id
+python3 -m main --config o1_long_response --task_id sample_task_id
 ```
 
 #### Using Model-Specific Parameters
@@ -264,10 +264,10 @@ When running batch tests with multiple configurations:
 
 ```bash
 # Test with short response configuration
-parallel --jobs 20 python3 -m main --data_dir data/arc-agi/data/evaluation --provider openai --model o1_short_response --task_id {} --save_submission_dir submissions/o1_short :::: ./data/task_lists/public_evaluation.txt
+parallel --jobs 20 python3 -m main --data_dir data/arc-agi/data/evaluation --config o1_long_response --task_id {} --save_submission_dir submissions/o1_short :::: ./data/task_lists/public_evaluation.txt
 
 # Test with long response configuration
-parallel --jobs 20 python3 -m main --data_dir data/arc-agi/data/evaluation --provider openai --model o1_long_response --task_id {} --save_submission_dir submissions/o1_long :::: ./data/task_lists/public_evaluation.txt
+parallel --jobs 20 python3 -m main --data_dir data/arc-agi/data/evaluation --config o1_long_response --task_id {} --save_submission_dir submissions/o1_long :::: ./data/task_lists/public_evaluation.txt
 ```
 
 #### Comparing Configuration Results

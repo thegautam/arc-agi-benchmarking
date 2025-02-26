@@ -11,27 +11,28 @@ import argparse
 load_dotenv()
 
 class ARCTester:
-    def __init__(self, provider: str, config: str, save_submission_dir: str, overwrite_submission: bool, print_submission: bool, num_attempts: int, retry_attempts: int, print_logs: bool):
-        self.provider = self.init_provider(provider, config)
+    def __init__(self, config: str, save_submission_dir: str, overwrite_submission: bool, print_submission: bool, num_attempts: int, retry_attempts: int, print_logs: bool):
+        self.config = config
+        self.model_config = utils.read_models_config(config)
+        self.provider = self.init_provider(self.model_config.provider)
         self.save_submission_dir = save_submission_dir
         self.overwrite_submission = overwrite_submission
         self.print_submission = print_submission
         self.num_attempts = num_attempts
         self.retry_attempts = retry_attempts
         self.print_logs = print_logs
-        self.config = config
 
-    def init_provider(self, provider: str, config: str) -> ProviderAdapter:
-        if provider == "anthropic":
-            return AnthropicAdapter(config)
-        elif provider == "openai":
-            return OpenAIAdapter(config)
-        elif provider == "deepseek":
-            return DeepseekAdapter(config)
-        elif provider == "gemini":
-            return GeminiAdapter(config)
+    def init_provider(self, provider_name: str) -> ProviderAdapter:
+        if provider_name == "anthropic":
+            return AnthropicAdapter(self.config)
+        elif provider_name == "openai":
+            return OpenAIAdapter(self.config)
+        elif provider_name == "deepseek":
+            return DeepseekAdapter(self.config)
+        elif provider_name == "gemini":
+            return GeminiAdapter(self.config)
         else:
-            raise ValueError(f"Unsupported provider: {provider}")
+            raise ValueError(f"Unsupported provider: {provider_name}")
         
     def print_log(self, message: str):
         if self.print_logs:
@@ -237,7 +238,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run ARC Tester")
     parser.add_argument("--data_dir", type=str, help="Data set to run. Configure in config/config.json")
     parser.add_argument("--task_id", type=str, help="Specific task ID to run")
-    parser.add_argument("--provider", type=str, default="anthropic", help="Provider to use")
     parser.add_argument("--config", type=str, required=True, help="Configuration name (e.g., 'o1_high', 'gemini_short_response')")
     parser.add_argument(
         "--save_submission_dir",
@@ -254,7 +254,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     arc_solver = ARCTester(
-        provider=args.provider,
         config=args.config,
         save_submission_dir=args.save_submission_dir, 
         overwrite_submission=args.overwrite_submission,
