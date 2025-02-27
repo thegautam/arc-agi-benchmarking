@@ -43,13 +43,14 @@ class ARCScorer:
             # Count all attempts in this pair, regardless of whether we process them all
             num_attempts += len(pair_attempts)
             
+            # Calculate costs for all attempts upfront
+            for attempt_key in pair_attempts:
+                if 'metadata' in pair_attempts[attempt_key] and 'cost' in pair_attempts[attempt_key]['metadata']:
+                    attempt_cost = pair_attempts[attempt_key]['metadata']['cost'].get('total_cost', 0.0)
+                    task_cost += attempt_cost
+            
             pair_correct = False
             for attempt in pair_attempts:
-                # Extract cost from metadata if available
-                if 'metadata' in pair_attempts[attempt] and 'cost' in pair_attempts[attempt]['metadata']:
-                    attempt_cost = pair_attempts[attempt]['metadata']['cost'].get('total_cost', 0.0)
-                    task_cost += attempt_cost
-
                 if pair_attempts[attempt] == []:
                     self.print_log(f"    No prediction for {task_id}, pair {pair_index}, attempt {attempt}")
                     continue
@@ -94,6 +95,7 @@ class ARCScorer:
         avg_cost_per_task = self.total_cost / total_tasks if total_tasks > 0 else 0
         avg_cost_per_attempt = self.total_cost / self.total_attempts if self.total_attempts > 0 else 0
 
+        # Only save results if results_dir is provided
         if self.results_dir:
             self.results_dir.mkdir(parents=True, exist_ok=True)
             results_file = self.results_dir / "results.json"
