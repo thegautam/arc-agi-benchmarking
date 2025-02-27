@@ -50,12 +50,13 @@ class ARCScorer:
                     task_cost += attempt_cost
             
             pair_correct = False
-            for attempt in pair_attempts:
-                if pair_attempts[attempt] == []:
-                    self.print_log(f"    No prediction for {task_id}, pair {pair_index}, attempt {attempt}")
+            for attempt_key in pair_attempts:
+                attempt_data = pair_attempts[attempt_key]
+                if attempt_data == []:
+                    self.print_log(f"    No prediction for {task_id}, pair {pair_index}, attempt {attempt_key}")
                     continue
 
-                if pair_attempts[attempt]['answer'] == self.solutions[task_id]['test'][pair_index]['output']:
+                if attempt_data['answer'] == self.solutions[task_id]['test'][pair_index]['output']:
                     pair_correct = True
                     break
 
