@@ -11,6 +11,8 @@ class ARCScorer:
         self.print_logs = print_logs
         self.solutions = self._load_solutions()
         self.results_dir = Path(results_dir) if results_dir else None
+        self.total_cost = 0.0
+        self.total_attempts = 0
 
     def print_log(self, message: str) -> None:
         if self.print_logs:
@@ -24,32 +26,42 @@ class ARCScorer:
                 solutions[task_id] = json.load(f)
         return solutions
 
-    def score_task(self, task_id: str, submission_path: Path) -> float:
+    def score_task(self, task_id: str, submission_path: Path) -> Tuple[float, float, int]:
         """
         Scores a single task submission against the solutions.
+        Returns (task_score, task_cost, num_attempts)
         """
         with submission_path.open() as f:
             task_submission = json.load(f)
 
         task_score = 0
         num_pairs = len(task_submission)
+        task_cost = 0.0
+        num_attempts = 0
 
         for pair_index, pair_attempts in enumerate(task_submission):
+            # Count all attempts in this pair, regardless of whether we process them all
+            num_attempts += len(pair_attempts)
+            
             pair_correct = False
             for attempt in pair_attempts:
+                # Extract cost from metadata if available
+                if 'metadata' in pair_attempts[attempt] and 'cost' in pair_attempts[attempt]['metadata']:
+                    attempt_cost = pair_attempts[attempt]['metadata']['cost'].get('total_cost', 0.0)
+                    task_cost += attempt_cost
 
                 if pair_attempts[attempt] == []:
                     self.print_log(f"    No prediction for {task_id}, pair {pair_index}, attempt {attempt}")
                     continue
 
-                if pair_attempts[attempt] == self.solutions[task_id]['test'][pair_index]['output']:
+                if pair_attempts[attempt]['answer'] == self.solutions[task_id]['test'][pair_index]['output']:
                     pair_correct = True
                     break
 
             if pair_correct:
                 task_score += 1
 
-        return task_score / num_pairs
+        return task_score / num_pairs, task_cost, num_attempts
 
     def score_submission(self) -> Tuple[float, int]:
         """
@@ -62,12 +74,25 @@ class ARCScorer:
         task_results = {}
 
         for submission_file in self.submission_dir.glob('*.json'):
+            if submission_file.name == 'results.json':
+                continue
             task_id = submission_file.stem
-            task_score = self.score_task(task_id, submission_file)
-            self.print_log(f"Task Id {task_id} score {task_score}")
+            task_score, task_cost, num_attempts = self.score_task(task_id, submission_file)
+            
             total_score += task_score
             total_tasks += 1
-            task_results[task_id] = task_score
+            self.total_cost += task_cost
+            self.total_attempts += num_attempts
+            
+            task_results[task_id] = {
+                "score": task_score,
+                "cost": task_cost,
+                "attempts": num_attempts
+            }
+
+        # Calculate average costs
+        avg_cost_per_task = self.total_cost / total_tasks if total_tasks > 0 else 0
+        avg_cost_per_attempt = self.total_cost / self.total_attempts if self.total_attempts > 0 else 0
 
         if self.results_dir:
             self.results_dir.mkdir(parents=True, exist_ok=True)
@@ -77,8 +102,20 @@ class ARCScorer:
                 json.dump({
                     "score": total_score,
                     "total_tasks": total_tasks,
+                    "total_cost": self.total_cost,
+                    "total_attempts": self.total_attempts,
+                    "avg_cost_per_task": avg_cost_per_task,
+                    "avg_cost_per_attempt": avg_cost_per_attempt,
                     "task_results": task_results
                 }, f)
+
+        # Calculate and print percentage score
+        percentage_score = (total_score / total_tasks * 100) if total_tasks > 0 else 0
+        print(f"\nFinal Score: {percentage_score:.2f}% ({total_score:.2f}/{total_tasks})")
+        print(f"Total Cost: ${self.total_cost:.4f}")
+        print(f"Average Cost per Task: ${avg_cost_per_task:.4f}")
+        print(f"Average Cost per Attempt: ${avg_cost_per_attempt:.4f}")
+        print(f"Total Attempts: {self.total_attempts}")
 
         return total_score, total_tasks
 
