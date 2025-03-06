@@ -20,6 +20,69 @@ def get_train_pairs_from_task(data_dir, task_id) -> List[ARCPair]:
 
     return pairs
 
+def extract_json_grid_from_end(text):
+    """
+    Safely extracts JSON grid from the end of text.
+    Returns a list of lists (grid) if successful, None otherwise.
+    """
+    try:
+        # First, try to find a complete JSON array with nested arrays
+        complete_grid_match = re.search(r'\[\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\](?:\s*,\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\])*\s*\]', text, re.DOTALL)
+        if complete_grid_match:
+            try:
+                return json.loads(complete_grid_match.group(0))
+            except json.JSONDecodeError:
+                pass  # Continue with line-by-line approach if this fails
+        
+        # Handle the case where arrays are written without commas between rows
+        no_comma_grid_match = re.search(r'\[\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\]\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\](?:\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\])*\s*\]', text, re.DOTALL)
+        if no_comma_grid_match:
+            # Add commas between the arrays
+            fixed_json = re.sub(r'\]\s*\[', '],[', no_comma_grid_match.group(0))
+            try:
+                return json.loads(fixed_json)
+            except json.JSONDecodeError:
+                pass  # Continue with line-by-line approach if this fails
+                
+        # Handle multi-line grid format without outer brackets and with variable number of rows
+        multi_line_grid_match = re.search(r'\[\[\s*\d+(?:\s*,\s*\d+)*\s*\](?:\s*\n\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\])*', text, re.DOTALL)
+        if multi_line_grid_match:
+            # Add outer brackets and commas between rows
+            grid_text = multi_line_grid_match.group(0)
+            fixed_json = '[' + re.sub(r'\]\s*\n\s*\[', '],[', grid_text) + ']'
+            try:
+                return json.loads(fixed_json)
+            except json.JSONDecodeError:
+                pass  # Continue with line-by-line approach if this fails
+        
+        # Original line-by-line approach as fallback
+        lines = text.strip().splitlines()
+        extracted_lines = []
+
+        # Iterate backwards to find JSON-like lines
+        for line in reversed(lines):
+            line = line.strip()
+            if re.match(r'^\[\s*(\d+\s*,\s*)*\d+\s*\]$', line):
+                extracted_lines.append(line)
+            elif extracted_lines:
+                # Once we encounter a non-matching line after capturing, break.
+                break
+
+        # Reverse to restore original order
+        extracted_lines.reverse()
+
+        # Convert lines to actual lists
+        result = []
+        for line in extracted_lines:
+            try:
+                result.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass  # Skip invalid lines
+
+        return result if result else None
+    except Exception:
+        return None
+
 def get_test_input_from_task(data_dir, task_id) -> List[ARCPair]:
     task_file = os.path.join(data_dir, f"{task_id}.json")
     with open(task_file, 'r') as f:

@@ -65,6 +65,24 @@ models:
       input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
       output: 4.40
 
+  - name: "QwQ-32B"
+    model_name: "Qwen/QwQ-32B"
+    provider: "huggingfacefireworks"
+    max_tokens: 32768 # From HF example
+    pricing:
+      date: "2025-03-05"
+      input: 0.90   # Off Fireworks pricing page 3/5/2024
+      output: 0.90
+
+  - name: "QwQ-32B-Fireworks"
+    model_name: "accounts/fireworks/models/qwq-32b"
+    provider: "fireworks"
+    max_tokens: 32768 # From HF example
+    pricing:
+      date: "2025-03-05"
+      input: 0.90   # Off Fireworks pricing page 3/5/2024
+      output: 0.90
+
   - name: "claude_sonnet"
     model_name: "claude-3-5-sonnet-latest"
     provider: "anthropic"
