@@ -77,25 +77,21 @@ class ARCTester:
         # 1. Try to extract JSON from code block (most precise method)
         json_code_block_match = utils.extract_json_from_code_block(response)
         if json_code_block_match:
-            print(f"Extracted JSON from code block: {json_code_block_match}")
             return json_code_block_match
         
         # 2. Try to extract JSON grid from end of response (specialized for grid formats)
         json_grid_match = utils.extract_json_grid_from_end(response)
         if json_grid_match:
-            print(f"Extracted JSON grid from end of response: {json_grid_match}")
             return json_grid_match
         
         # 3. Try to extract JSON array using regex (more general approach)
         json_str_match = utils.regex_extract_json(response)
         if json_str_match:
-            print(f"Extracted JSON array using regex: {json_str_match}")
             return json_str_match
 
         # 4. Finally, use an LLM to extract the JSON (last resort)
         json_llm_match = self.provider.extract_json_from_response(response)
         if json_llm_match:
-            print(f"Extracted JSON using LLM: {json_llm_match}")
             return json_llm_match
     
         # If all extraction methods fail, raise an exception

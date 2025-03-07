@@ -1,7 +1,7 @@
 # Prices are in USD per 1 million tokens.
 # Pricing effective date: February 23rd, 2025.
 models:
-  - name: "gpt4o_standard"
+  - name: "gpt-4o"
     model_name: "gpt-4o"
     provider: "openai"
     max_tokens: 4024
@@ -83,8 +83,8 @@ models:
       input: 0.90   # Off Fireworks pricing page 3/5/2024
       output: 0.90
 
-  - name: "claude_sonnet"
-    model_name: "claude-3-5-sonnet-latest"
+  - name: "claude-3-5-sonnet-20241022"
+    model_name: "claude-3-5-sonnet-20241022"
     provider: "anthropic"
     max_tokens: 4024
     temperature: 0.0
