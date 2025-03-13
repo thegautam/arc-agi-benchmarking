@@ -20,7 +20,7 @@ class OpenAIAdapter(ProviderAdapter):
         client = OpenAI()
         return client
 
-    def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None) -> Attempt:
+    def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
         """
         Make a prediction with the OpenAI model and return an Attempt object
         
@@ -94,6 +94,7 @@ class OpenAIAdapter(ProviderAdapter):
                 total_cost=prompt_cost + completion_cost
             ),
             task_id=task_id,
+            pair_index=pair_index,
             test_id=test_id
         )
 

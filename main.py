@@ -130,7 +130,7 @@ class ARCTester:
         
         return parsed_json
         
-    def predict_task_output(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str):
+    def predict_task_output(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int):
         """
         Given a task, predict the test output. This reponse may need parsing.
 
@@ -143,16 +143,16 @@ class ARCTester:
         prompt = convert_task_pairs_to_prompt(training_pairs, test_input)
 
         self.print_log(f"Making prediction for task {task_id}, test {test_id}")
-        response: Attempt = self.provider.make_prediction(prompt, task_id=task_id, test_id=test_id)
+        response: Attempt = self.provider.make_prediction(prompt, task_id=task_id, test_id=test_id, pair_index=pair_index)
 
         return response
 
-    def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str) -> Attempt:
+    def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int) -> Attempt:
         """
         Modified to return the full Attempt object instead of just the parsed answer
         """
         # Get the initial response as an Attempt object
-        attempt: Attempt = self.predict_task_output(training_pairs, test_input, task_id, test_id)
+        attempt: Attempt = self.predict_task_output(training_pairs, test_input, task_id, test_id, pair_index)
 
         try:
             # Parse the answer field but keep the full attempt object
@@ -219,7 +219,8 @@ class ARCTester:
                             training_pairs=train_pairs,
                             test_input=pair,
                             task_id=task_id,
-                            test_id=test_id
+                            test_id=test_id,
+                            pair_index=t
                         )
 
                         if attempt_obj is not None:

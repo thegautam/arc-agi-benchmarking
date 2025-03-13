@@ -22,7 +22,7 @@ class FireworksAdapter(ProviderAdapter):
         client = OpenAI(api_key=os.environ.get("FIREWORKS_API_KEY"), base_url="https://api.fireworks.ai/inference/v1")
         return client
 
-    def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None) -> Attempt:
+    def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
         """
         Make a prediction with the Fireworks model and return an Attempt object
         """
@@ -92,6 +92,7 @@ class FireworksAdapter(ProviderAdapter):
                 total_cost=prompt_cost + completion_cost
             ),
             task_id=task_id,
+            pair_index=pair_index,
             test_id=test_id
         )
 

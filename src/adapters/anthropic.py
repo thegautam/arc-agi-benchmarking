@@ -22,7 +22,7 @@ class AnthropicAdapter(ProviderAdapter):
 
         return client
     
-    def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None) -> Attempt:
+    def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
         """
         Make a prediction with the Anthropic model and return an Attempt object
         
@@ -99,6 +99,7 @@ class AnthropicAdapter(ProviderAdapter):
                 total_cost=prompt_cost + completion_cost
             ),
             task_id=task_id,  # Add task_id to metadata
+            pair_index=pair_index,  # Add pair_index to metadata
             test_id=test_id  # Add test_id to metadata
         )
 

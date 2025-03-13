@@ -20,6 +20,26 @@ models:
       input: 0.15   # Standard input price; note: a cached input rate of 0.075 exists.
       output: 0.60
 
+  - name: "o3-mini-2025-01-31-low"
+    model_name: "o3-mini-2025-01-31"
+    provider: "openai"
+    max_completion_tokens: 100000
+    reasoning_effort: "low"
+    pricing:
+      date: "2025-03-12"
+      input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
+      output: 4.40
+
+  - name: "o3-mini-2025-01-31-high"
+    model_name: "o3-mini-2025-01-31"
+    provider: "openai"
+    max_completion_tokens: 100000
+    reasoning_effort: "high"
+    pricing:
+      date: "2025-03-12"
+      input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
+      output: 4.40
+
   - name: "o1_short_response"
     model_name: "o1"
     provider: "openai"
@@ -83,6 +103,15 @@ models:
       input: 0.90   # Off Fireworks pricing page 3/5/2024
       output: 0.90
 
+  - name: "deepseek-r1-fireworks"
+    model_name: "accounts/fireworks/models/deepseek-r1"
+    provider: "fireworks"
+    max_tokens: 32768 # From HF example
+    pricing:
+      date: "2025-03-05"
+      input: 3.00   # Off Fireworks pricing page 3/5/2024
+      output: 8.00
+
   - name: "claude-3-5-sonnet-20241022"
     model_name: "claude-3-5-sonnet-20241022"
     provider: "anthropic"
@@ -123,7 +152,7 @@ models:
       input: 0.07   # Cache-hit input price per 1M tokens; note: cache-miss price is 0.27.
       output: 1.10  # Output price per 1M tokens.
 
-  - name: "deepseek_reasoner"
+  - name: "deepseek_r1"
     model_name: "deepseek-reasoner"
     provider: "deepseek"
     max_completion_tokens: 4024
