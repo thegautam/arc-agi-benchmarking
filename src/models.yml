@@ -1,6 +1,10 @@
 # Prices are in USD per 1 million tokens.
 
 models:
+################
+#### OpenAI ####
+################
+
   - name: "gpt-4o-2024-11-20"
     model_name: "gpt-4o-2024-11-20"
     provider: "openai"
@@ -9,6 +13,36 @@ models:
       date: "2025-02-23"
       input: 2.50   # Standard input price; note: a cached input rate of 1.25 exists.
       output: 10.00
+
+  - name: "o3-mini-2025-01-31-high"
+    model_name: "o3-mini-2025-01-31"
+    provider: "openai"
+    max_completion_tokens: 100000
+    reasoning_effort: "high"
+    pricing:
+      date: "2025-03-12"
+      input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
+      output: 4.40
+
+  - name: "o3-mini-2025-01-31-medium"
+    model_name: "o3-mini-2025-01-31"
+    provider: "openai"
+    max_completion_tokens: 100000
+    reasoning_effort: "medium"
+    pricing:
+      date: "2025-03-12"
+      input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
+      output: 4.40
+
+  - name: "o3-mini-2025-01-31-low"
+    model_name: "o3-mini-2025-01-31"
+    provider: "openai"
+    max_completion_tokens: 100000
+    reasoning_effort: "low"
+    pricing:
+      date: "2025-03-12"
+      input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
+      output: 4.40
 
   - name: "gpt4o_mini"
     model_name: "gpt-4o-mini"
@@ -30,34 +64,6 @@ models:
       input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
       output: 4.40
 
-  - name: "o3-mini-2025-01-31-high"
-    model_name: "o3-mini-2025-01-31"
-    provider: "openai"
-    max_completion_tokens: 100000
-    reasoning_effort: "high"
-    pricing:
-      date: "2025-03-12"
-      input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
-      output: 4.40
-
-  - name: "o1_short_response"
-    model_name: "o1"
-    provider: "openai"
-    max_completion_tokens: 1024  # Shorter response limit
-    pricing:
-      date: "2025-02-23"
-      input: 15.00  # Standard input price; note: a cached input rate of 7.50 exists.
-      output: 60.00
-
-  - name: "o1_long_response"
-    model_name: "o1"
-    provider: "openai"
-    max_completion_tokens: 4024  # Longer response limit
-    pricing:
-      date: "2025-02-23"
-      input: 15.00  # Standard input price; note: a cached input rate of 7.50 exists.
-      output: 60.00
-
   - name: "gpt-4.5-2025-02-21-alpha"
     model_name: "gpt-4.5-2025-02-21-alpha"
     provider: "openai"
@@ -66,15 +72,6 @@ models:
       date: "2025-02-23"
       input: 75.00  # Standard input price; note: a cached input rate of 7.50 exists.
       output: 150.00
-
-  - name: "o3_mini"
-    model_name: "o3-mini"
-    provider: "openai"
-    max_completion_tokens: 4024
-    pricing:
-      date: "2025-02-23"
-      input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
-      output: 4.40
 
   - name: "o1_mini"
     model_name: "o1-mini"
@@ -85,32 +82,18 @@ models:
       input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
       output: 4.40
 
-  - name: "QwQ-32B"
-    model_name: "Qwen/QwQ-32B"
-    provider: "huggingfacefireworks"
-    max_tokens: 32768 # From HF example
-    pricing:
-      date: "2025-03-05"
-      input: 0.90   # Off Fireworks pricing page 3/5/2024
-      output: 0.90
+################
+#### Anthropic ####
+################
 
-  - name: "QwQ-32B-Fireworks"
-    model_name: "accounts/fireworks/models/qwq-32b"
-    provider: "fireworks"
-    max_tokens: 32768 # From HF example
+  - name: "claude-3-7-sonnet-20250219"
+    model_name: "claude-3-7-sonnet-20250219"
+    provider: "anthropic"
+    max_tokens: 8192
     pricing:
-      date: "2025-03-05"
-      input: 0.90   # Off Fireworks pricing page 3/5/2024
-      output: 0.90
-
-  - name: "deepseek-r1-fireworks"
-    model_name: "accounts/fireworks/models/deepseek-r1"
-    provider: "fireworks"
-    max_tokens: 32768 # From HF example
-    pricing:
-      date: "2025-03-05"
-      input: 3.00   # Off Fireworks pricing page 3/5/2024
-      output: 8.00
+      date: "2025-03-12"
+      input: 3.00   # Single input price per 1M tokens.
+      output: 15.00 # Single output price per 1M tokens.
 
   - name: "claude-3-5-sonnet-20241022"
     model_name: "claude-3-5-sonnet-20241022"
@@ -142,25 +125,9 @@ models:
       input: 15.00  # Single input price per 1M tokens.
       output: 75.00 # Single output price per 1M tokens.
 
-  - name: "deepseek_chat"
-    model_name: "deepseek-chat"
-    provider: "deepseek"
-    max_tokens: 4024
-    temperature: 0.0
-    pricing:
-      date: "2025-02-23"
-      input: 0.07   # Cache-hit input price per 1M tokens; note: cache-miss price is 0.27.
-      output: 1.10  # Output price per 1M tokens.
-
-  - name: "deepseek_r1"
-    model_name: "deepseek-reasoner"
-    provider: "deepseek"
-    max_completion_tokens: 4024
-    temperature: 0.0
-    pricing:
-      date: "2025-02-23"
-      input: 0.14   # Cache-hit input price per 1M tokens; note: cache-miss price is 0.55.
-      output: 2.19  # Output price per 1M tokens.
+################
+#### Gemini ####
+################
 
   - name: "gemini_pro"
     model_name: "gemini-1.5-pro"
@@ -221,3 +188,61 @@ models:
       date: "2025-02-23"
       input: 0.10   # Normalized to text/image/video rate; audio prompts are priced at 0.70.
       output: 0.40  # Single output rate per 1M tokens.
+
+################
+#### DeepSeek ####
+################
+
+  - name: "deepseek_chat"
+    model_name: "deepseek-chat"
+    provider: "deepseek"
+    max_tokens: 4024
+    temperature: 0.0
+    pricing:
+      date: "2025-02-23"
+      input: 0.07   # Cache-hit input price per 1M tokens; note: cache-miss price is 0.27.
+      output: 1.10  # Output price per 1M tokens.
+
+  - name: "deepseek_r1"
+    model_name: "deepseek-reasoner"
+    provider: "deepseek"
+    max_completion_tokens: 8000
+    pricing:
+      date: "2025-02-23"
+      input: 0.55  # Cache-hit input price per 1M tokens; note: cache-miss price is 0.55.
+      output: 2.19  # Output price per 1M tokens.
+
+##################
+## Hugging Face ##
+##################
+
+  - name: "QwQ-32B"
+    model_name: "Qwen/QwQ-32B"
+    provider: "huggingfacefireworks"
+    max_tokens: 32768 # From HF example
+    pricing:
+      date: "2025-03-05"
+      input: 0.90   # Off Fireworks pricing page 3/5/2024
+      output: 0.90
+
+  - name: "QwQ-32B-Fireworks"
+    model_name: "accounts/fireworks/models/qwq-32b"
+    provider: "fireworks"
+    max_tokens: 32768 # From HF example
+    pricing:
+      date: "2025-03-05"
+      input: 0.90   # Off Fireworks pricing page 3/5/2024
+      output: 0.90
+
+########################
+###### Fireworks ######
+########################
+
+  - name: "deepseek-r1-fireworks"
+    model_name: "accounts/fireworks/models/deepseek-r1"
+    provider: "fireworks"
+    max_tokens: 32768 # From HF example
+    pricing:
+      date: "2025-03-05"
+      input: 3.00   # Off Fireworks pricing page 3/5/2024
+      output: 8.00

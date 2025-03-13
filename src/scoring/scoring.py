@@ -143,8 +143,8 @@ class ARCScorer:
             for attempt_key in pair_attempts:
                 if (pair_attempts[attempt_key] is not None and 
                     isinstance(pair_attempts[attempt_key], dict) and 
-                    'pair_index' in pair_attempts[attempt_key]):
-                    pair_index = pair_attempts[attempt_key]['pair_index']
+                    'pair_index' in pair_attempts[attempt_key]['metadata']):
+                    pair_index = pair_attempts[attempt_key]['metadata']['pair_index']
                     if 0 <= pair_index < num_pairs:  # Validate the index
                         break
             
@@ -217,7 +217,7 @@ class ARCScorer:
         """
         Read a submission from file, score it, then return the score
         """
-        self.print_log(f"Scoring {self.submission_dir}\n")
+        # self.print_log(f"Scoring {self.submission_dir}\n")
 
         total_score = 0
         total_tasks = 0
@@ -228,7 +228,6 @@ class ARCScorer:
             if submission_file.name == 'results.json':
                 continue
 
-            print(f"Scoring {submission_file}")
             task_id = submission_file.stem
             scoring_result = self.score_task(task_id, submission_file)
             
@@ -244,6 +243,8 @@ class ARCScorer:
                 "attempts": scoring_result['attempts'],
                 "pixel_similarity": scoring_result['pixel_similarity']
             }
+
+            self.print_log(f"    Task {task_id} score: {scoring_result['score']:.2f}, cost: ${scoring_result['cost']:.4f}, attempts: {scoring_result['attempts']}, pixel similarity: {scoring_result['pixel_similarity']:.4f}")
 
         # Calculate average costs and similarity
         avg_cost_per_task = self.total_cost / total_tasks if total_tasks > 0 else 0
