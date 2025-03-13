@@ -135,7 +135,28 @@ class ARCScorer:
         num_attempts = 0
         pixel_similarities = []
 
-        for pair_index, pair_attempts in enumerate(task_submission):
+        for enum_pair_index, pair_attempts in enumerate(task_submission):
+            # Try to extract pair_index from the attempt key
+            pair_index = None
+            
+            # First, check if pair_index is directly in the attempt data
+            for attempt_key in pair_attempts:
+                if (pair_attempts[attempt_key] is not None and 
+                    isinstance(pair_attempts[attempt_key], dict) and 
+                    'pair_index' in pair_attempts[attempt_key]):
+                    pair_index = pair_attempts[attempt_key]['pair_index']
+                    if 0 <= pair_index < num_pairs:  # Validate the index
+                        break
+            
+            # If not found in data, fall back to enumeration index
+            if pair_index is None:
+                pair_index = enum_pair_index
+                
+            # Skip if the pair_index is out of bounds
+            if pair_index >= num_pairs:
+                self.print_log(f"    Warning: Invalid pair_index {pair_index} for {task_id}, skipping")
+                continue
+            
             # Count all attempts in this pair, regardless of whether we process them all
             num_attempts += len(pair_attempts)
             
