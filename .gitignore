@@ -168,3 +168,4 @@ plan.md
 .python-version
 .vscode/
 plan*.md
+models_private.yml

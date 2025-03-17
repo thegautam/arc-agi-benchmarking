@@ -182,7 +182,8 @@ def normalize_model_name(name: str) -> str:
 
 def read_models_config(config: str) -> ModelConfig:
     """
-    Reads and parses the models.yml configuration file for a specific configuration.
+    Reads and parses both models.yml and models_private.yml configuration files 
+    for a specific configuration.
     
     Args:
         config (str): The configuration name to look up (e.g., 'o1_high', 'gemini_short_response')
@@ -193,10 +194,21 @@ def read_models_config(config: str) -> ModelConfig:
     Raises:
         ValueError: If no matching configuration is found
     """
-    models_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models.yml")
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    models_file = os.path.join(base_dir, "models.yml")
+    models_private_file = os.path.join(base_dir, "models_private.yml")
     
+    # Initialize with models from the main config file
     with open(models_file, 'r') as f:
         config_data = yaml.safe_load(f)
+    
+    # Add models from private config if it exists
+    if os.path.exists(models_private_file):
+        with open(models_private_file, 'r') as f:
+            private_config_data = yaml.safe_load(f)
+            # Merge the models lists
+            if 'models' in private_config_data:
+                config_data['models'].extend(private_config_data['models'])
     
     # Look for a model with the name matching the config parameter
     for model in config_data['models']:

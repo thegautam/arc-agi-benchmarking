@@ -103,9 +103,16 @@ class AnthropicAdapter(ProviderAdapter):
             test_id=test_id  # Add test_id to metadata
         )
 
+        # Incase there is a thinking block
+        answer = ""
+        for content in response.content:
+            if content.type == "text":
+                answer = content.text
+                break
+
         attempt = Attempt(
             metadata=metadata,
-            answer=response.content[0].text if response.content else ""
+            answer=answer
         )
 
         return attempt
