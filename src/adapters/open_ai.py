@@ -123,6 +123,8 @@ class OpenAIAdapter(ProviderAdapter):
         if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
             return self.chat_completion(messages)
         else:  # APIType.RESPONSES
+            # account for different parameter names between chat completions and responses APIs
+            self._normalize_to_responses_kwargs()
             return self.responses(messages)
     
     def chat_completion(self, messages: list) -> str:
@@ -223,4 +225,13 @@ IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting
         else:  # APIType.RESPONSES
             return response.output[0].role
         
-    
+    def _normalize_to_responses_kwargs(self):
+        """
+        Normalize kwargs based on API type to handle different parameter names between chat completions and responses APIs
+        """
+        if self.model_config.api_type == APIType.RESPONSES:
+            # Convert max_tokens and max_completion_tokens to max_output_tokens for responses API
+            if "max_tokens" in self.model_config.kwargs:
+                self.model_config.kwargs["max_output_tokens"] = self.model_config.kwargs.pop("max_tokens")
+            if "max_completion_tokens" in self.model_config.kwargs:
+                self.model_config.kwargs["max_output_tokens"] = self.model_config.kwargs.pop("max_completion_tokens")

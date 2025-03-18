@@ -41,9 +41,10 @@ models:
       output: 60.00
 
   - name: "o1_pro-2025-02-25"
-    model_name: "o1"
+    model_name: "o1-pro-2025-02-25"
     provider: "openai"
-    max_completion_tokens: 4024  # Longer response limit
+    api_type: "responses"
+    max_completion_tokens: 10000  # Longer response limit
     pricing:
       date: "2025-02-23"
       input: 15.00  # Standard input price; note: a cached input rate of 7.50 exists.
