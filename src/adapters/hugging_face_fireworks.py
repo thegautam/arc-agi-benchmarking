@@ -2,8 +2,8 @@ from .provider import ProviderAdapter
 import os
 from dotenv import load_dotenv
 import json
-from openai import OpenAI
-from datetime import datetime, timezone
+from huggingface_hub import InferenceClient
+from datetime import datetime
 from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import logging
 from typing import Optional
@@ -11,29 +11,32 @@ from typing import Optional
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-class DeepseekAdapter(ProviderAdapter):
+class HuggingFaceFireworksAdapter(ProviderAdapter):
     def init_client(self):
         """
-        Initialize the Deepseek model
+        Initialize the Hugging Face Fireworks model
         """
-        if not os.environ.get("DEEPSEEK_API_KEY"):
-            raise ValueError("DEEPSEEK_API_KEY not found in environment variables")
+        if not os.environ.get("HUGGING_FACE_API_KEY"):
+            raise ValueError("HUGGING_FACE_API_KEY not found in environment variables")
         
-        client = OpenAI(api_key=os.environ.get("DEEPSEEK_API_KEY"), base_url="https://api.deepseek.com")
+        client = InferenceClient(
+            provider="fireworks-ai",
+            api_key=os.environ.get("HUGGING_FACE_API_KEY")
+        )
         return client
 
     def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
         """
-        Make a prediction with the Deepseek model and return an Attempt object
+        Make a prediction with the Hugging Face Fireworks model and return an Attempt object
         """
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.utcnow()
         
         messages = [
             {"role": "user", "content": prompt}
         ]
         response = self.chat_completion(messages)
         
-        end_time = datetime.now(timezone.utc)
+        end_time = datetime.utcnow()
 
         # Use pricing from model config
         input_cost_per_token = self.model_config.pricing.input / 1_000_000  # Convert from per 1M tokens
@@ -54,7 +57,7 @@ class DeepseekAdapter(ProviderAdapter):
             for i, msg in enumerate(messages)
         ]
 
-        # Convert Deepseek response to our schema
+        # Convert Hugging Face Fireworks response to our schema
         response_choices = [
             Choice(
                 index=len(input_choices),
@@ -81,9 +84,9 @@ class DeepseekAdapter(ProviderAdapter):
                 completion_tokens=response.usage.completion_tokens,
                 total_tokens=response.usage.total_tokens,
                 completion_tokens_details=CompletionTokensDetails(
-                    reasoning_tokens=0,  # Deepseek doesn't provide this breakdown
+                    reasoning_tokens=0,  # Hugging Face Fireworks doesn't provide this breakdown
                     accepted_prediction_tokens=response.usage.completion_tokens,
-                    rejected_prediction_tokens=0  # Deepseek doesn't provide this
+                    rejected_prediction_tokens=0  # Hugging Face Fireworks doesn't provide this
                 )
             ),
             cost=Cost(
@@ -96,6 +99,7 @@ class DeepseekAdapter(ProviderAdapter):
             test_id=test_id
         )
 
+        print(f"Response (response.choices[0].message): {response.choices[0].message.content.strip()}")
         attempt = Attempt(
             metadata=metadata,
             answer=response.choices[0].message.content.strip()

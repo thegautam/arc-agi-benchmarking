@@ -1,5 +1,5 @@
 import json
-from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter
+from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter
 from dotenv import load_dotenv
 import src.utils as utils
 from src.schemas import ARCTaskOutput, ARCPair, Attempt
@@ -31,6 +31,10 @@ class ARCTester:
             return DeepseekAdapter(self.config)
         elif provider_name == "gemini":
             return GeminiAdapter(self.config)
+        elif provider_name == "huggingfacefireworks":
+            return HuggingFaceFireworksAdapter(self.config)
+        elif provider_name == "fireworks":
+            return FireworksAdapter(self.config)
         else:
             raise ValueError(f"Unsupported provider: {provider_name}")
         
@@ -70,17 +74,22 @@ class ARCTester:
         """
         Extract JSON from various possible formats in the response.
         """
-        # Try to extract JSON array using regex
-        json_str_match = utils.regex_extract_json(response)
-        if json_str_match:
-            return json_str_match
-        
-        # Try to extract JSON from code block
+        # 1. Try to extract JSON from code block (most precise method)
         json_code_block_match = utils.extract_json_from_code_block(response)
         if json_code_block_match:
             return json_code_block_match
+        
+        # 2. Try to extract JSON grid from end of response (specialized for grid formats)
+        json_grid_match = utils.extract_json_grid_from_end(response)
+        if json_grid_match:
+            return json_grid_match
+        
+        # 3. Try to extract JSON array using regex (more general approach)
+        json_str_match = utils.regex_extract_json(response)
+        if json_str_match:
+            return json_str_match
 
-        # Finally, use an LLM to extract the JSON
+        # 4. Finally, use an LLM to extract the JSON (last resort)
         json_llm_match = self.provider.extract_json_from_response(response)
         if json_llm_match:
             return json_llm_match
@@ -96,17 +105,21 @@ class ARCTester:
         """
         single_integer_match = self.convert_single_integer_to_2d_list(response)
         if single_integer_match:
+            print(f"Extracted single integer: {single_integer_match}")
             return single_integer_match
 
         # Try to convert 1d list to 2d list
         # This is a band-aid hack when the LLM returns a single-item list containing an integer
         one_d_match = self.convert_1d_list_to_2d_list(response)
         if one_d_match:
+            print(f"Extracted 1d list: {one_d_match}")
             return one_d_match
 
         # First, try to parse the raw JSON response
         try:
             parsed_json = json.loads(response)
+            print(f"Extracted raw JSON: {parsed_json}")
+            return parsed_json
         except:
             # If raw parsing fails, try to extract JSON from various formats
             parsed_json = self.extract_json_from_response(response)
@@ -117,7 +130,7 @@ class ARCTester:
         
         return parsed_json
         
-    def predict_task_output(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str):
+    def predict_task_output(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int):
         """
         Given a task, predict the test output. This reponse may need parsing.
 
@@ -130,16 +143,16 @@ class ARCTester:
         prompt = convert_task_pairs_to_prompt(training_pairs, test_input)
 
         self.print_log(f"Making prediction for task {task_id}, test {test_id}")
-        response: Attempt = self.provider.make_prediction(prompt, task_id=task_id, test_id=test_id)
+        response: Attempt = self.provider.make_prediction(prompt, task_id=task_id, test_id=test_id, pair_index=pair_index)
 
         return response
 
-    def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str) -> Attempt:
+    def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int) -> Attempt:
         """
         Modified to return the full Attempt object instead of just the parsed answer
         """
         # Get the initial response as an Attempt object
-        attempt: Attempt = self.predict_task_output(training_pairs, test_input, task_id, test_id)
+        attempt: Attempt = self.predict_task_output(training_pairs, test_input, task_id, test_id, pair_index)
 
         try:
             # Parse the answer field but keep the full attempt object
@@ -206,7 +219,8 @@ class ARCTester:
                             training_pairs=train_pairs,
                             test_input=pair,
                             task_id=task_id,
-                            test_id=test_id
+                            test_id=test_id,
+                            pair_index=t
                         )
 
                         if attempt_obj is not None:
