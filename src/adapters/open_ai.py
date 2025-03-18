@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 import json
 from openai import OpenAI
-from datetime import datetime
+from datetime import datetime, timezone
 from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 from typing import Optional
 
@@ -55,12 +55,12 @@ class OpenAIAdapter(ProviderAdapter):
             task_id: Optional task ID to include in metadata
             test_id: Optional test ID to include in metadata
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
 
         response = self.call_ai_model(prompt)
         
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
 
         # Use pricing from model config
         input_cost_per_token = self.model_config.pricing.input / 1_000_000  # Convert from per 1M tokens
@@ -138,7 +138,7 @@ class OpenAIAdapter(ProviderAdapter):
 
         return attempt
 
-    def call_ai_model(self, prompt: str = None):
+    def call_ai_model(self, prompt: str):
         """
         Call the appropriate OpenAI API based on the api_type
         
