@@ -33,7 +33,7 @@ class ProviderAdapter(abc.ABC):
         pass
     
     @abc.abstractmethod
-    def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None) -> Attempt:
+    def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
         """
         Make a prediction with the model and return an Attempt object's answer
         
@@ -41,7 +41,7 @@ class ProviderAdapter(abc.ABC):
             prompt: The prompt to send to the model
             task_id: Optional task ID to include in metadata
             test_id: Optional test ID to include in metadata
-        
+            pair_index: Optional pair index to include in metadata
         The implementation should ensure that the config name is included in the metadata.
         """
         pass

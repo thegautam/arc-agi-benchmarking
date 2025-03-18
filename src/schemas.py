@@ -56,6 +56,7 @@ class AttemptMetadata(BaseModel):
     usage: Usage
     cost: Cost
     task_id: Optional[str] = None
+    pair_index: Optional[int] = None
     test_id: Optional[str] = None
     
     model_config = {
