@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 import json
 from openai import OpenAI
-from datetime import datetime
+from datetime import datetime, timezone
 from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import logging
 from typing import Optional
@@ -26,14 +26,14 @@ class DeepseekAdapter(ProviderAdapter):
         """
         Make a prediction with the Deepseek model and return an Attempt object
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         messages = [
             {"role": "user", "content": prompt}
         ]
         response = self.chat_completion(messages)
         
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
 
         # Use pricing from model config
         input_cost_per_token = self.model_config.pricing.input / 1_000_000  # Convert from per 1M tokens

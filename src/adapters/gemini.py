@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import json
 import google.generativeai as genai
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import logging
 
@@ -35,7 +35,7 @@ class GeminiAdapter(ProviderAdapter):
             task_id: Optional task ID to include in metadata
             test_id: Optional test ID to include in metadata
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         # Get input token count before making the request
         input_tokens = self.client.count_tokens(prompt)
@@ -44,7 +44,7 @@ class GeminiAdapter(ProviderAdapter):
         messages = [{"role": "user", "content": prompt}]
         response = self.chat_completion(messages)
         
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
 
         # Get token counts from response metadata
         usage_metadata = response.usage_metadata
