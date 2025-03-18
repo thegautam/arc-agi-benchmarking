@@ -1,3 +1,4 @@
+from enum import Enum
 from .provider import ProviderAdapter
 import os
 from dotenv import load_dotenv
@@ -9,7 +10,32 @@ from typing import Optional
 
 load_dotenv()
 
+
+class APIType:
+    CHAT_COMPLETIONS = "chat_completions"
+    RESPONSES = "responses"
+
 class OpenAIAdapter(ProviderAdapter):
+
+    def __init__(self, config: str):
+        """
+        Initialize the OpenAI adapter with model configuration and handle api_type.
+        If api_type is not provided, it defaults to 'chat_completions'.
+        Args:
+            config: Configuration name that identifies the model and its settings
+        """
+        super().__init__(config)
+        
+        # Check for api_type in model config
+        if hasattr(self.model_config, 'api_type'):
+            api_type = self.model_config.api_type.lower()
+            if api_type not in [APIType.CHAT_COMPLETIONS, APIType.RESPONSES]:
+                raise ValueError(f"Invalid api_type '{api_type}'. Must be either '{APIType.CHAT_COMPLETIONS}' or '{APIType.RESPONSES}'")
+            self.api_type = api_type
+        else:
+            self.api_type = APIType.CHAT_COMPLETIONS
+
+
     def init_client(self):
         """
         Initialize the OpenAI client
@@ -31,10 +57,8 @@ class OpenAIAdapter(ProviderAdapter):
         """
         start_time = datetime.utcnow()
         
-        messages = [
-            {"role": "user", "content": prompt}
-        ]
-        response = self.chat_completion(messages)
+
+        response = self.call_ai_model(prompt)
         
         end_time = datetime.utcnow()
 
@@ -42,8 +66,18 @@ class OpenAIAdapter(ProviderAdapter):
         input_cost_per_token = self.model_config.pricing.input / 1_000_000  # Convert from per 1M tokens
         output_cost_per_token = self.model_config.pricing.output / 1_000_000  # Convert from per 1M tokens
         
-        prompt_cost = response.usage.prompt_tokens * input_cost_per_token
-        completion_cost = response.usage.completion_tokens * output_cost_per_token
+        # Get token usage based on API type
+        if self.api_type == APIType.CHAT_COMPLETIONS:
+            prompt_tokens = response.usage.prompt_tokens
+            completion_tokens = response.usage.completion_tokens
+            total_tokens = response.usage.total_tokens
+        else:  # APIType.RESPONSES
+            prompt_tokens = response.usage.input_tokens
+            completion_tokens = response.usage.output_tokens
+            total_tokens = prompt_tokens + completion_tokens
+        
+        prompt_cost = prompt_tokens * input_cost_per_token
+        completion_cost = completion_tokens * output_cost_per_token
 
         # Convert input messages to choices
         input_choices = [
@@ -61,8 +95,8 @@ class OpenAIAdapter(ProviderAdapter):
             Choice(
                 index=1,
                 message=Message(
-                    role=response.choices[0].message.role,
-                    content=response.choices[0].message.content
+                    role=self._get_role(response),
+                    content=self._get_content(response)
                 )
             )
         ]
@@ -79,12 +113,12 @@ class OpenAIAdapter(ProviderAdapter):
             choices=all_choices,
             kwargs=self.model_config.kwargs,
             usage=Usage(
-                prompt_tokens=response.usage.prompt_tokens,
-                completion_tokens=response.usage.completion_tokens,
-                total_tokens=response.usage.total_tokens,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
                 completion_tokens_details=CompletionTokensDetails(
                     reasoning_tokens=0,
-                    accepted_prediction_tokens=response.usage.completion_tokens,
+                    accepted_prediction_tokens=completion_tokens,
                     rejected_prediction_tokens=0
                 )
             ),
@@ -99,15 +133,49 @@ class OpenAIAdapter(ProviderAdapter):
 
         attempt = Attempt(
             metadata=metadata,
-            answer=response.choices[0].message.content.strip()
+            answer=self._get_content(response)
         )
 
         return attempt
 
+    def call_ai_model(self, prompt: str = None):
+        """
+        Call the appropriate OpenAI API based on the api_type
+        
+        Args:
+            prompt: Raw prompt text
+        
+        Returns:
+            OpenAI API response
+        """
+        if self.api_type == APIType.CHAT_COMPLETIONS:
+            messages = [
+                {"role": "user", "content": prompt}
+            ]
+            return self.chat_completion(messages)
+        else:  # APIType.RESPONSES
+            return self.responses(prompt)
+    
     def chat_completion(self, messages: list) -> str:
         return self.client.chat.completions.create(
             model=self.model_config.model_name,
             messages=messages,
+            **self.model_config.kwargs
+        )
+    
+    def responses(self, prompt: str) -> str:
+        """
+        Make a call to the OpenAI Responses API
+        
+        Args:
+            prompt: The prompt to send to the model
+            
+        Returns:
+            OpenAI API response
+        """
+        return self.client.responses.create(
+            model=self.model_config.model_name,
+            prompt=prompt,
             **self.model_config.kwargs
         )
 
@@ -125,11 +193,12 @@ Example of expected output format:
 
 IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting.
 """
-        completion = self.chat_completion(
+        completion = self.call_ai_model(
             messages=[{"role": "user", "content": prompt}],
+            prompt=prompt
         )
 
-        assistant_content = completion.choices[0].message.content.strip()
+        assistant_content = self._get_content(completion)
 
         # Try to extract JSON from various formats
         # Remove markdown code blocks if present
@@ -176,3 +245,15 @@ IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting
                 pass
             
             return None
+
+    def _get_content(self, response):
+        if self.api_type == APIType.CHAT_COMPLETIONS:
+            return response.choices[0].message.content.strip()
+        else:  # APIType.RESPONSES
+            return response.content.strip()
+
+    def _get_role(self, response):
+        if self.api_type == APIType.CHAT_COMPLETIONS:
+            return response.choices[0].message.role
+        else:  # APIType.RESPONSES
+            return "assistant"  # Responses API always returns assistant role
