@@ -53,7 +53,6 @@ models:
   - name: "gpt-4.5-2025-02-21-alpha"
     model_name: "gpt-4.5-2025-02-21-alpha"
     provider: "openai"
-    api_type: "responses"
     max_completion_tokens: 4024  # Longer response limit
     pricing:
       date: "2025-02-23"

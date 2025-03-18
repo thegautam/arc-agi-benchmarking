@@ -34,13 +34,8 @@ echo "Starting provider tests..."
 
 # Define test configurations
 CONFIGS=(
-    "gpt4o_mini e7639916"
-    "gpt4o_standard 2037f2c7"
     "gpt-4.5-2025-02-21-alpha 14754a24"
     "o1_pro-2025-02-25 7bb29440"
-    # "claude_sonnet e7639916" 
-    # "gemini_flash e7639916"
-    # "deepseek_chat e7639916"
 )
 
 # Create temporary file with active configurations
