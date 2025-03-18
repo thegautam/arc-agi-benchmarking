@@ -141,41 +141,30 @@ class OpenAIAdapter(ProviderAdapter):
     def call_ai_model(self, prompt: str):
         """
         Call the appropriate OpenAI API based on the api_type
-        
-        Args:
-            prompt: Raw prompt text
-        
-        Returns:
-            OpenAI API response
         """
+        messages = [{"role": "user", "content": prompt}]
         if self.api_type == APIType.CHAT_COMPLETIONS:
-            messages = [
-                {"role": "user", "content": prompt}
-            ]
             return self.chat_completion(messages)
         else:  # APIType.RESPONSES
-            return self.responses(prompt)
+            return self.responses(messages)
     
     def chat_completion(self, messages: list) -> str:
+        """
+        Make a call to the OpenAI Chat Completions API
+        """
         return self.client.chat.completions.create(
             model=self.model_config.model_name,
             messages=messages,
             **self.model_config.kwargs
         )
     
-    def responses(self, prompt: str) -> str:
+    def responses(self, messages: list) -> str:
         """
         Make a call to the OpenAI Responses API
-        
-        Args:
-            prompt: The prompt to send to the model
-            
-        Returns:
-            OpenAI API response
         """
         return self.client.responses.create(
             model=self.model_config.model_name,
-            prompt=prompt,
+            input=messages,
             **self.model_config.kwargs
         )
 
@@ -194,7 +183,6 @@ Example of expected output format:
 IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting.
 """
         completion = self.call_ai_model(
-            messages=[{"role": "user", "content": prompt}],
             prompt=prompt
         )
 
@@ -250,7 +238,8 @@ IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting
         if self.api_type == APIType.CHAT_COMPLETIONS:
             return response.choices[0].message.content.strip()
         else:  # APIType.RESPONSES
-            return response.content.strip()
+            # Just grab the text field from the last content item
+            return response.content[0].text.strip()
 
     def _get_role(self, response):
         if self.api_type == APIType.CHAT_COMPLETIONS:
