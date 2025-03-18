@@ -113,15 +113,6 @@ models:
       input: 75.00  # Standard input price; note: a cached input rate of 7.50 exists.
       output: 150.00
 
-  - name: "o1_mini"
-    model_name: "o1-mini"
-    provider: "openai"
-    max_completion_tokens: 4024
-    pricing:
-      date: "2025-02-23"
-      input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
-      output: 4.40
-
 ###################
 #### Anthropic ####
 ###################

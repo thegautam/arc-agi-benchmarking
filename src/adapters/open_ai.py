@@ -208,6 +208,8 @@ IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting
             completion_tokens = response.usage.completion_tokens
             total_tokens = response.usage.total_tokens
             reasoning_tokens = 0
+            if hasattr(response.usage, 'completion_tokens_details') and hasattr(response.usage.completion_tokens_details, 'reasoning_tokens'):
+                reasoning_tokens = response.usage.completion_tokens_details.reasoning_tokens
         else:  # APIType.RESPONSES
             prompt_tokens = response.usage.input_tokens
             completion_tokens = response.usage.output_tokens
