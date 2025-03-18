@@ -8,6 +8,7 @@ models:
   - name: "gpt-4o-2024-11-20"
     model_name: "gpt-4o-2024-11-20"
     provider: "openai"
+    api_type: "responses"
     max_completion_tokens: 8000
     pricing:
       date: "2025-02-23"
@@ -17,6 +18,7 @@ models:
   - name: "gpt-4o-mini-2024-07-18"
     model_name: "gpt-4o-mini-2024-07-18"
     provider: "openai"
+    api_type: "responses"
     max_completion_tokens: 8000
     pricing:
       date: "2025-03-15"
@@ -92,15 +94,15 @@ models:
       input: 15.00   # Standard input price; note: a cached input rate of 0.55 exists.
       output: 60.00
 
-  - name: "gpt4o_mini"
-    model_name: "gpt-4o-mini"
+  - name: "o1_pro-2025-02-25"
+    model_name: "o1-pro-2025-02-25"
     provider: "openai"
-    max_tokens: 4024
-    temperature: 0.0
+    api_type: "responses"
+    max_completion_tokens: 10000  # Longer response limit
     pricing:
       date: "2025-02-23"
-      input: 0.15   # Standard input price; note: a cached input rate of 0.075 exists.
-      output: 0.60
+      input: 15.00  # Standard input price; note: a cached input rate of 7.50 exists.
+      output: 60.00
 
   - name: "gpt-4.5-2025-02-21-alpha"
     model_name: "gpt-4.5-2025-02-21-alpha"
@@ -110,15 +112,6 @@ models:
       date: "2025-02-23"
       input: 75.00  # Standard input price; note: a cached input rate of 7.50 exists.
       output: 150.00
-
-  - name: "o1_mini"
-    model_name: "o1-mini"
-    provider: "openai"
-    max_completion_tokens: 4024
-    pricing:
-      date: "2025-02-23"
-      input: 1.10   # Standard input price; note: a cached input rate of 0.55 exists.
-      output: 4.40
 
 ###################
 #### Anthropic ####

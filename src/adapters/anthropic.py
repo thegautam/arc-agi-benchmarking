@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 import json
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 load_dotenv()
 
 class AnthropicAdapter(ProviderAdapter):
@@ -31,14 +31,14 @@ class AnthropicAdapter(ProviderAdapter):
             task_id: Optional task ID to include in metadata
             test_id: Optional test ID to include in metadata
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         messages = [
             {"role": "user", "content": prompt}
         ]
 
         response = self.chat_completion(messages)
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
 
         # Use pricing from model config
         input_cost_per_token = self.model_config.pricing.input / 1_000_000  # Convert from per 1M tokens
