@@ -24,6 +24,6 @@ tokenizers==0.20.1
 tqdm==4.66.5
 typing_extensions==4.12.2
 urllib3==2.2.3
-openai==1.58.1
+openai==1.66.3
 click>=8.0.0
 grpcio==1.60.1

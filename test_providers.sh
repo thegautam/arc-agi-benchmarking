@@ -34,7 +34,10 @@ echo "Starting provider tests..."
 
 # Create a temporary file with all configurations
 if cat << EOF | parallel --halt now,fail=1 --colsep ' ' -j4 "run_test {1} {2}"
-o3_mini e7639916
+gpt4o_mini e7639916
+claude_sonnet e7639916
+gemini_flash e7639916
+deepseek_chat e7639916
 EOF
 then
     echo "✨ All tests completed successfully"
