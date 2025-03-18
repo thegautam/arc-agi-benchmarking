@@ -36,6 +36,12 @@ echo "Starting provider tests..."
 CONFIGS=(
     "gpt-4.5-2025-02-21-alpha 14754a24"
     "o1_pro-2025-02-25 7bb29440"
+    "gpt-4o-2024-11-20 f0afb749"
+    "o1_mini 94414823"
+    "claude-3-7-sonnet-20250219 dc2e9a9d"
+    "claude_opus f83cb3f6"
+    "gemini-1-5-pro-002 baf41dbf"
+    "deepseek_r1 93b4f4b3"
 )
 
 # Create temporary file with active configurations
