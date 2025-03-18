@@ -23,6 +23,7 @@ class OpenAIAdapter(ProviderAdapter):
         client = OpenAI()
         return client
 
+
     def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
         """
         Make a prediction with the OpenAI model and return an Attempt object
@@ -43,18 +44,11 @@ class OpenAIAdapter(ProviderAdapter):
         input_cost_per_token = self.model_config.pricing.input / 1_000_000  # Convert from per 1M tokens
         output_cost_per_token = self.model_config.pricing.output / 1_000_000  # Convert from per 1M tokens
         
-        # Get token usage based on API type
-        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
-            prompt_tokens = response.usage.prompt_tokens
-            completion_tokens = response.usage.completion_tokens
-            total_tokens = response.usage.total_tokens
-        else:  # APIType.RESPONSES
-            prompt_tokens = response.usage.input_tokens
-            completion_tokens = response.usage.output_tokens
-            total_tokens = prompt_tokens + completion_tokens
+        # Get usage data
+        usage = self._get_usage(response)
         
-        prompt_cost = prompt_tokens * input_cost_per_token
-        completion_cost = completion_tokens * output_cost_per_token
+        prompt_cost = usage.prompt_tokens * input_cost_per_token
+        completion_cost = usage.completion_tokens * output_cost_per_token
 
         # Convert input messages to choices
         input_choices = [
@@ -89,16 +83,7 @@ class OpenAIAdapter(ProviderAdapter):
             end_timestamp=end_time,
             choices=all_choices,
             kwargs=self.model_config.kwargs,
-            usage=Usage(
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                total_tokens=total_tokens,
-                completion_tokens_details=CompletionTokensDetails(
-                    reasoning_tokens=0,
-                    accepted_prediction_tokens=completion_tokens,
-                    rejected_prediction_tokens=0
-                )
-            ),
+            usage=usage,
             cost=Cost(
                 prompt_cost=prompt_cost,
                 completion_cost=completion_cost,
@@ -213,6 +198,34 @@ IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting
                 pass
             
             return None
+        
+    def _get_usage(self, response) -> Usage:
+        """
+        Extract usage information from the response based on the API type
+        """
+        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
+            prompt_tokens = response.usage.prompt_tokens
+            completion_tokens = response.usage.completion_tokens
+            total_tokens = response.usage.total_tokens
+            reasoning_tokens = 0
+        else:  # APIType.RESPONSES
+            prompt_tokens = response.usage.input_tokens
+            completion_tokens = response.usage.output_tokens
+            total_tokens = prompt_tokens + completion_tokens
+            reasoning_tokens = 0
+            if hasattr(response.usage, 'output_tokens_details') and hasattr(response.usage.output_tokens_details, 'reasoning_tokens'):
+                reasoning_tokens = response.usage.output_tokens_details.reasoning_tokens
+        
+        return Usage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            completion_tokens_details=CompletionTokensDetails(
+                reasoning_tokens=reasoning_tokens,
+                accepted_prediction_tokens=completion_tokens,
+                rejected_prediction_tokens=0
+            )
+        )
 
     def _get_content(self, response):
         if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
