@@ -14,7 +14,7 @@ class ProviderAdapter(abc.ABC):
             config: Configuration name that identifies the model and its settings
         """
         self.config = config
-        self.model_config = read_models_config(config)
+        self.model_config: ModelConfig = read_models_config(config)
         
         # Verify the provider matches the adapter
         adapter_provider = self.__class__.__name__.lower().replace('adapter', '')

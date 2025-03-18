@@ -1,39 +1,16 @@
-from enum import Enum
 from .provider import ProviderAdapter
 import os
 from dotenv import load_dotenv
 import json
 from openai import OpenAI
 from datetime import datetime, timezone
-from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
+from src.schemas import APIType, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 from typing import Optional
 
 load_dotenv()
 
 
-class APIType:
-    CHAT_COMPLETIONS = "chat_completions"
-    RESPONSES = "responses"
-
 class OpenAIAdapter(ProviderAdapter):
-
-    def __init__(self, config: str):
-        """
-        Initialize the OpenAI adapter with model configuration and handle api_type.
-        If api_type is not provided, it defaults to 'chat_completions'.
-        Args:
-            config: Configuration name that identifies the model and its settings
-        """
-        super().__init__(config)
-        
-        # Check for api_type in model config
-        if hasattr(self.model_config, 'api_type'):
-            api_type = self.model_config.api_type.lower()
-            if api_type not in [APIType.CHAT_COMPLETIONS, APIType.RESPONSES]:
-                raise ValueError(f"Invalid api_type '{api_type}'. Must be either '{APIType.CHAT_COMPLETIONS}' or '{APIType.RESPONSES}'")
-            self.api_type = api_type
-        else:
-            self.api_type = APIType.CHAT_COMPLETIONS
 
 
     def init_client(self):
@@ -67,7 +44,7 @@ class OpenAIAdapter(ProviderAdapter):
         output_cost_per_token = self.model_config.pricing.output / 1_000_000  # Convert from per 1M tokens
         
         # Get token usage based on API type
-        if self.api_type == APIType.CHAT_COMPLETIONS:
+        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
             prompt_tokens = response.usage.prompt_tokens
             completion_tokens = response.usage.completion_tokens
             total_tokens = response.usage.total_tokens
@@ -143,7 +120,7 @@ class OpenAIAdapter(ProviderAdapter):
         Call the appropriate OpenAI API based on the api_type
         """
         messages = [{"role": "user", "content": prompt}]
-        if self.api_type == APIType.CHAT_COMPLETIONS:
+        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
             return self.chat_completion(messages)
         else:  # APIType.RESPONSES
             return self.responses(messages)
@@ -235,14 +212,15 @@ IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting
             return None
 
     def _get_content(self, response):
-        if self.api_type == APIType.CHAT_COMPLETIONS:
+        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
             return response.choices[0].message.content.strip()
         else:  # APIType.RESPONSES
-            # Just grab the text field from the last content item
-            return response.content[0].text.strip()
+            return response.output_text.strip()
 
     def _get_role(self, response):
-        if self.api_type == APIType.CHAT_COMPLETIONS:
+        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
             return response.choices[0].message.role
         else:  # APIType.RESPONSES
-            return "assistant"  # Responses API always returns assistant role
+            return response.output[0].role
+        
+    

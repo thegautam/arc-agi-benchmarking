@@ -32,17 +32,30 @@ export -f run_test
 
 echo "Starting provider tests..."
 
-# Create a temporary file with all configurations
-if cat << EOF | parallel --halt now,fail=1 --colsep ' ' -j4 "run_test {1} {2}"
-gpt4o_mini e7639916
-claude_sonnet e7639916
-gemini_flash e7639916
-deepseek_chat e7639916
-EOF
-then
+# Define test configurations
+CONFIGS=(
+    "gpt4o_mini e7639916"
+    "gpt4o_standard 2037f2c7"
+    "gpt-4.5-2025-02-21-alpha 14754a24"
+    # "o1_pro-2025-02-25 7bb29440"
+    # "claude_sonnet e7639916" 
+    # "gemini_flash e7639916"
+    # "deepseek_chat e7639916"
+)
+
+# Create temporary file with active configurations
+TMP_CONFIG_FILE=$(mktemp)
+for config in "${CONFIGS[@]}"; do
+    echo "$config" >> "$TMP_CONFIG_FILE"
+done
+
+# Run tests in parallel
+if cat "$TMP_CONFIG_FILE" | parallel --halt now,fail=1 --colsep ' ' -j4 "run_test {1} {2}"; then
     echo "✨ All tests completed successfully"
+    rm "$TMP_CONFIG_FILE"
     exit 0
 else
     echo "💥 Some tests failed"
+    rm "$TMP_CONFIG_FILE"
     exit 1
-fi 
+fi

@@ -4,7 +4,8 @@ models:
   - name: "gpt4o_standard"
     model_name: "gpt-4o"
     provider: "openai"
-    max_tokens: 4024
+    max_output_tokens: 4024
+    api_type: "responses"
     pricing:
       date: "2025-02-23"
       input: 2.50   # Standard input price; note: a cached input rate of 1.25 exists.
@@ -13,7 +14,8 @@ models:
   - name: "gpt4o_mini"
     model_name: "gpt-4o-mini"
     provider: "openai"
-    max_tokens: 4024
+    max_output_tokens: 4024
+    api_type: "responses"
     temperature: 0.0
     pricing:
       date: "2025-02-23"
@@ -38,9 +40,19 @@ models:
       input: 15.00  # Standard input price; note: a cached input rate of 7.50 exists.
       output: 60.00
 
+  - name: "o1_pro-2025-02-25"
+    model_name: "o1"
+    provider: "openai"
+    max_completion_tokens: 4024  # Longer response limit
+    pricing:
+      date: "2025-02-23"
+      input: 15.00  # Standard input price; note: a cached input rate of 7.50 exists.
+      output: 60.00
+
   - name: "gpt-4.5-2025-02-21-alpha"
     model_name: "gpt-4.5-2025-02-21-alpha"
     provider: "openai"
+    api_type: "responses"
     max_completion_tokens: 4024  # Longer response limit
     pricing:
       date: "2025-02-23"

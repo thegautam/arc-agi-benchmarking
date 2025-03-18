@@ -3,6 +3,13 @@ from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 import json
 
+class APIType:
+    """
+    Enum for the different API types that can be used with the OpenAI API.
+    """
+    CHAT_COMPLETIONS = "chat_completions"
+    RESPONSES = "responses"
+
 class ARCTaskOutput(BaseModel):
     output: List[List[int]]
 
@@ -91,13 +98,14 @@ class ModelPricing(BaseModel):
 
 class ModelConfig(BaseModel):
     """
-    A model configuration used to populate a models kwargs and calculate pricing metadata. 
+    A model configuration used to populate a models kwargs and calculate pricing metadata. Not all fields are required by all providers.
     Points to model.yml
     """
     name: str  # This is now the config_name
     model_name: str  # The actual model name to use with the provider's API
     provider: str
     pricing: ModelPricing
+    api_type: Optional[str] = APIType.CHAT_COMPLETIONS # currently only used by openai
     kwargs: Dict[str, Any] = {}
     
     model_config = {
@@ -113,7 +121,7 @@ class ModelConfig(BaseModel):
             return values
             
         kwargs = {}
-        known_fields = {'name', 'provider', 'pricing', 'kwargs', 'model_name'}
+        known_fields = {'name', 'provider', 'pricing', 'kwargs', 'model_name', 'api_type'}
         
         for field_name, value in values.items():
             if field_name not in known_fields:
