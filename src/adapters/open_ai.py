@@ -239,7 +239,7 @@ IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting
         if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
             return response.choices[0].message.role
         else:  # APIType.RESPONSES
-            return response.output[0].role
+            return "assistant" # will always be assistant for responses API
         
     def _normalize_to_responses_kwargs(self):
         """
