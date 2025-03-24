@@ -11,6 +11,10 @@ This repo contains code for testing model baselines on ARC-AGI. The input data i
 
 `pip install -r requirements.txt`
 
+## ARC-AGI-1 vs ARC-AGI-2
+
+The task format for ARC-AGI-1 and ARC-AGI-2 are identical. You can point this testing hardness towards ARC-AGI-2 via the `--data_dir` parameter. When running with concurrency, ensure you're using the correct `<task_list>.txt` found in `data/task_lists/` for the set you're testing.
+
 ## Testing a single task
 
 To test a single task, run:
@@ -29,7 +33,7 @@ For example with the `parallel` [command](https://www.gnu.org/software/parallel/
 
 `brew install parallel`
 
-`parallel --jobs 20 --progress python3 -m main --data_dir data/arc-agi/data/evaluation --config claude_sonnet --task_id {} --save_submission_dir submissions/claude_sonnet_20241022 --print_logs :::: ./data/task_lists/public_evaluation.txt`
+`parallel --jobs 20 --progress python3 -m main --data_dir data/arc-agi/data/evaluation --config claude_sonnet --task_id {} --save_submission_dir submissions/claude_sonnet_20241022 --print_logs :::: ./data/task_lists/public_evaluation_v1.txt`
 
 Note: In order to use parllel you'll need a list of task ids. `generate_tasks_list.py` helps with this. Public data task ids are already supplied.
 
@@ -264,10 +268,10 @@ When running batch tests with multiple configurations:
 
 ```bash
 # Test with short response configuration
-parallel --jobs 20 python3 -m main --data_dir data/arc-agi/data/evaluation --config o1_long_response --task_id {} --save_submission_dir submissions/o1_short :::: ./data/task_lists/public_evaluation.txt
+parallel --jobs 20 python3 -m main --data_dir data/arc-agi/data/evaluation --config o1_long_response --task_id {} --save_submission_dir submissions/o1_short :::: ./data/task_lists/public_evaluation_v1.txt
 
 # Test with long response configuration
-parallel --jobs 20 python3 -m main --data_dir data/arc-agi/data/evaluation --config o1_long_response --task_id {} --save_submission_dir submissions/o1_long :::: ./data/task_lists/public_evaluation.txt
+parallel --jobs 20 python3 -m main --data_dir data/arc-agi/data/evaluation --config o1_long_response --task_id {} --save_submission_dir submissions/o1_long :::: ./data/task_lists/public_evaluation_v1.txt
 ```
 
 #### Comparing Configuration Results
