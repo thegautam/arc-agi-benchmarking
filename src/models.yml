@@ -98,6 +98,8 @@ models:
     model_name: "o1-pro-2025-03-19"
     provider: "openai"
     api_type: "responses"
+    reasoning:
+      effort: "medium"
     max_completion_tokens: 100000  # Longer response limit
     pricing:
       date: "2025-03-19"
@@ -281,3 +283,12 @@ models:
       date: "2025-03-05"
       input: 3.00   # Off Fireworks pricing page 3/5/2024
       output: 8.00
+
+  - name: "deepseek-v3-20250324-fireworks"
+    model_name: "accounts/fireworks/models/deepseek-v3-0324"
+    provider: "fireworks"
+    max_tokens: 32768 # From HF example
+    pricing:
+      date: "2025-03-24"
+      input: 0.90   # Off Fireworks pricing page 3/5/2024
+      output: 0.90
