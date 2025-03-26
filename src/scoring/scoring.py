@@ -118,8 +118,16 @@ class ARCScorer:
         matching_pixels = np.sum(aligned_a == aligned_b)
         total_pixels = aligned_a.size
         
-        similarity_score = matching_pixels / total_pixels if total_pixels > 0 else 0.0
-        return similarity_score
+        # Add size penalty when matrices have very different dimensions
+        original_a = np.array(matrix_a)
+        original_b = np.array(matrix_b)
+        size_ratio = min(original_a.size, original_b.size) / max(original_a.size, original_b.size)
+        
+        # Calculate similarity with size penalty
+        pixel_similarity = matching_pixels / total_pixels if total_pixels > 0 else 0.0
+        final_similarity = pixel_similarity * size_ratio
+        
+        return final_similarity
 
     def score_task(self, task_id: str, submission_path: Path) -> Tuple[float, float, int]:
         """

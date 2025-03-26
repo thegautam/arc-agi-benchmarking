@@ -226,6 +226,15 @@ models:
       input: 1.25
       output: 5.00
 
+  - name: "gemini-2.5-pro-exp-03-25"
+    model_name: "gemini-2.5-pro-exp-03-25"
+    provider: "gemini"
+    max_output_tokens: 200000
+    pricing:
+      date: "2025-03-25"
+      input: 0.00
+      output: 0.00
+
 ################
 #### DeepSeek ####
 ################
