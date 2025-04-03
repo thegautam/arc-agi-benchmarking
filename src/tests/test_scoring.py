@@ -23,6 +23,8 @@ SOLUTION_DATA = {
 # Submission Scenarios
 
 # 1. Perfect Match
+# Tests the basic success case: all submitted answers exactly match the solutions.
+# Expected score: 1.0
 SUBMISSION_PERFECT = [
     # Pair 0
     {"attempt_1": {"answer": [[1, 1], [1, 1]], "metadata": {"pair_index": 0, "cost": {"total_cost": 0.1}}}},
@@ -33,6 +35,8 @@ SUBMISSION_PERFECT = [
 ]
 
 # 2. No Match
+# Tests the basic failure case: all submitted answers are incorrect.
+# Expected score: 0.0
 SUBMISSION_NO_MATCH = [
     # Pair 0
     {"attempt_1": {"answer": [[0, 0], [0, 0]], "metadata": {"pair_index": 0, "cost": {"total_cost": 0.1}}}},
@@ -43,6 +47,8 @@ SUBMISSION_NO_MATCH = [
 ]
 
 # 3. Partial Match (Pair 1 correct)
+# Tests partial scoring: only one pair (Pair 1) is correct.
+# Expected score: 1/3
 SUBMISSION_PARTIAL = [
     # Pair 0
     {"attempt_1": {"answer": [[0, 0], [0, 0]], "metadata": {"pair_index": 0, "cost": {"total_cost": 0.1}}}},
@@ -53,6 +59,9 @@ SUBMISSION_PARTIAL = [
 ]
 
 # 4. Multiple Attempts (Pair 0 correct on 2nd attempt)
+# Tests the "any attempt counts" rule: Pair 0 is correct because attempt_2 matches,
+# even though attempt_1 was wrong. Also tests cost/attempt aggregation.
+# Expected score: 1/3
 SUBMISSION_MULTI_ATTEMPT = [
      # Pair 0
     {"attempt_1": {"answer": [[0, 0], [0, 0]], "metadata": {"pair_index": 0, "cost": {"total_cost": 0.1}}},
@@ -64,6 +73,9 @@ SUBMISSION_MULTI_ATTEMPT = [
 ]
 
 # 5. Incorrect Dimensions (Pair 0)
+# Tests that submissions with incorrect grid dimensions are marked as incorrect.
+# Pair 0 answer has wrong dimensions; Pairs 1 & 2 are correct.
+# Expected score: 2/3
 SUBMISSION_WRONG_DIM = [
     # Pair 0
     {"attempt_1": {"answer": [[1]], "metadata": {"pair_index": 0, "cost": {"total_cost": 0.1}}}}, # Wrong dim
@@ -74,6 +86,9 @@ SUBMISSION_WRONG_DIM = [
 ]
 
 # 6. Different Pixels (Pair 0)
+# Tests that submissions with correct dimensions but different content are incorrect.
+# Pair 0 answer has same dimensions but different pixels; Pairs 1 & 2 are correct.
+# Expected score: 2/3
 SUBMISSION_DIFF_PIXELS = [
     # Pair 0
     {"attempt_1": {"answer": [[1, 0], [1, 1]], "metadata": {"pair_index": 0, "cost": {"total_cost": 0.1}}}}, # Diff pixel
@@ -84,6 +99,9 @@ SUBMISSION_DIFF_PIXELS = [
 ]
 
 # 7. None Submission (Pair 0)
+# Tests handling of None attempts: scorer should skip None without error and mark pair as incorrect based on this.
+# Pair 0 attempt is None; Pairs 1 & 2 are correct.
+# Expected score: 2/3
 SUBMISSION_NONE = [
     # Pair 0
     {"attempt_1": None}, # Attempt 1 is None for this pair
@@ -94,6 +112,9 @@ SUBMISSION_NONE = [
 ]
 
 # 8. Empty List Submission (Pair 0)
+# Tests handling of empty list answers: scorer should skip '[]' as incorrect.
+# Pair 0 answer is []; Pairs 1 & 2 are correct.
+# Expected score: 2/3
 SUBMISSION_EMPTY_LIST = [
     # Pair 0
     {"attempt_1": {"answer": [], "metadata": {"pair_index": 0, "cost": {"total_cost": 0.1}}}}, # Empty list
@@ -104,6 +125,9 @@ SUBMISSION_EMPTY_LIST = [
 ]
 
 # 9. Pair Index Metadata (Pairs submitted out of order, Pair 1 correct)
+# Tests scorer's reliance on 'pair_index' in metadata to match against the correct solution,
+# even when pairs are out of order in the submission list. Only Pair 1 is correct.
+# Expected score: 1/3
 SUBMISSION_PAIR_INDEX_META = [
     # Pair 2 submitted first
     {"attempt_1": {"answer": [[8]], "metadata": {"pair_index": 2, "cost": {"total_cost": 0.1}}}},
@@ -116,6 +140,7 @@ SUBMISSION_PAIR_INDEX_META = [
 # --- Malformed Submissions for Error Handling Tests ---
 
 # 10. Attempt data is not a dictionary
+# Tests error handling: ensures a TypeError is raised if attempt data is not a dict.
 SUBMISSION_MALFORMED_NOT_DICT = [
     # Pair 0
     {"attempt_1": "not_a_dictionary"}, # Invalid attempt data type
@@ -124,6 +149,7 @@ SUBMISSION_MALFORMED_NOT_DICT = [
 ]
 
 # 11. Attempt data is missing 'metadata' key
+# Tests error handling: ensures a KeyError is raised if the 'metadata' key is missing.
 SUBMISSION_MALFORMED_NO_METADATA = [
     # Pair 0
     {"attempt_1": {"answer": [[1, 1], [1, 1]]}}, # Missing metadata
@@ -132,6 +158,7 @@ SUBMISSION_MALFORMED_NO_METADATA = [
 ]
 
 # 12. Attempt data is missing 'answer' key
+# Tests error handling: ensures a KeyError is raised if the 'answer' key is missing.
 SUBMISSION_MALFORMED_NO_ANSWER = [
     # Pair 0
     {"attempt_1": {"metadata": {"pair_index": 0, "cost": {"total_cost": 0.1}}}}, # Missing answer
