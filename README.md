@@ -328,3 +328,11 @@ Remember to:
 - Maintain consistent error handling
 - Document any provider-specific requirements or limitations
 - Update tests to cover the new provider
+
+## Running Tests
+
+To run the tests, execute the following command from the root directory:
+
+```bash
+pytest
+```
