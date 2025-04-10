@@ -6,48 +6,60 @@ ProviderJsonExtractor = Callable[[str], Optional[List[List[int]]]]
 
 # --- Helper Parsing Functions (Stubs) ---
 
-def _parse_json_code_block(response: str) -> Optional[List[List[int]]]:
-    """Attempts to extract and parse JSON from a ```json code block."""
-    # TODO: Implement logic to find and parse ```json blocks
-    print(f"DEBUG: Trying _parse_json_code_block on {response!r}") # Debug
-    return None
+def backscan_json_parser(log_str: str) -> Optional[List[List[int]]]:
+    """
+    Extract the last valid JSON substring that matches the List[List] structure
+    from the given log string by scanning backwards from the end.
 
-def _parse_direct_json(response: str) -> Optional[List[List[int]]]:
-    """Attempts to parse the entire response string as JSON."""
-    # TODO: Implement direct json.loads parsing and validation
-    print(f"DEBUG: Trying _parse_direct_json on {response!r}") # Debug
-    try:
-        # Basic check - doesn't validate structure/content yet
-        parsed = json.loads(response.strip())
-        if isinstance(parsed, list): # Basic validation placeholder
-             # Needs proper validation like before
-             # return parsed # Temporarily returning raw parse for structure
-             pass
-    except json.JSONDecodeError:
-        pass
-    return None
+    Parameters:
+        log_str (str): The full log output text.
 
-def _parse_single_int(response: str) -> Optional[List[List[int]]]:
-    """Attempts to parse the response as a single integer."""
-    # TODO: Implement single integer parsing
-    print(f"DEBUG: Trying _parse_single_int on {response!r}") # Debug
-    try:
-        num = int(response.strip())
-        return [[num]]
-    except ValueError:
+    Returns:
+        The parsed List[List] object if found and valid, otherwise None.
+    """
+    last_bracket_idx = -1
+    closing_bracket = None
+    for i in range(len(log_str) - 1, -1, -1):
+        char = log_str[i]
+        if char in (']', '}'):
+            last_bracket_idx = i
+            closing_bracket = char
+            break
+
+    if last_bracket_idx == -1:
         return None
 
-def _parse_1d_list_as_2d(response: str) -> Optional[List[List[int]]]:
-    """Attempts to parse a 1D list like [1, 2] into [[1], [2]]. """
-    # TODO: Implement 1D list parsing and conversion
-    print(f"DEBUG: Trying _parse_1d_list_as_2d on {response!r}") # Debug
+    opening_bracket = '[' if closing_bracket == ']' else '{'
+
+    bracket_counter = 1 # Start at 1 to account for the found closing bracket
+    start_idx = -1
+
+    for i in range(last_bracket_idx - 1, -1, -1):
+        char = log_str[i]
+        if char == closing_bracket:
+            bracket_counter += 1
+        elif char == opening_bracket:
+            bracket_counter -= 1
+            if bracket_counter == 0:
+                start_idx = i
+                break
+
+    if start_idx == -1:
+        return None
+
+    json_candidate = log_str[start_idx:last_bracket_idx+1]
+
     try:
-        parsed = json.loads(response.strip())
-        if isinstance(parsed, list) and all(isinstance(item, int) for item in parsed):
-             return [[item] for item in parsed]
+        parsed_json = json.loads(json_candidate)
+
+        # Validate the structure: must be a non-empty list of lists.
+        if isinstance(parsed_json, list) and parsed_json and all(isinstance(row, list) for row in parsed_json):
+            return parsed_json
+        else:
+            return None
+
     except json.JSONDecodeError:
-        pass
-    return None
+        return None
 
 
 # --- Main Parsing Orchestrator ---
@@ -58,6 +70,7 @@ def parse_and_validate_json(response: str, provider_extractor: ProviderJsonExtra
     Returns the parsed List[List[int]] or raises ValueError if validation fails.
     """
     parsing_attempts = [
+        backscan_json_parser,
         provider_extractor,
     ]
 
