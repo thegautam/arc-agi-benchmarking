@@ -169,3 +169,4 @@ plan.md
 .vscode/
 plan*.md
 models_private.yml
+.cursor

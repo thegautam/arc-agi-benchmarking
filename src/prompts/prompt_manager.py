@@ -1,3 +1,4 @@
+import json
 from src.utils import convert_2d_list_to_string
 from src.schemas import ARCPair
 from typing import List
@@ -19,10 +20,10 @@ def convert_task_pairs_to_prompt(training_pairs: List[ARCPair], test_input: ARCP
     training_examples = ""
     for i, pair in enumerate(training_pairs):
         training_examples += f"--Example {i}-- \n\n INPUT: \n\n"
-        training_examples += convert_2d_list_to_string(pair.input) + "\n\n"
+        training_examples += json.dumps(pair.input) + "\n\n"
         training_examples += f"OUTPUT: \n\n"
-        training_examples += convert_2d_list_to_string(pair.output) + "\n\n"
+        training_examples += json.dumps(pair.output) + "\n\n"
 
-    test_input = convert_2d_list_to_string(test_input.input)
+    test_input_str = json.dumps(test_input.input)
 
-    return prompt_template.format(training_examples=training_examples, test_input=test_input)
+    return prompt_template.format(training_examples=training_examples, test_input=test_input_str)
