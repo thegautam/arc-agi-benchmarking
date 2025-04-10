@@ -1,5 +1,5 @@
 import pytest
-from src.parsing import backscan_json_parser
+from src.utils.parsing import backscan_json_parser
 
 # Test cases for backscan_json_parser
 

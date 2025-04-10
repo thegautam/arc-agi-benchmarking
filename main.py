@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import src.utils as utils
 from src.schemas import ARCTaskOutput, ARCPair, Attempt
 from src.prompts.prompt_manager import convert_task_pairs_to_prompt
-from src.parsing import parse_and_validate_json
+from src.utils.parsing import parse_and_validate_json
 from typing import List, Any, Optional
 import os
 import argparse

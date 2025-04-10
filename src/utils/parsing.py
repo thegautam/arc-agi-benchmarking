@@ -4,7 +4,7 @@ from typing import List, Optional, Callable
 # Type hint for the provider's JSON extraction function (can be refined later)
 ProviderJsonExtractor = Callable[[str], Optional[List[List[int]]]]
 
-# --- Helper Parsing Functions (Stubs) ---
+# --- Helper Parsing Functions: Can be added to as needed ---
 
 def backscan_json_parser(log_str: str) -> Optional[List[List[int]]]:
     """
