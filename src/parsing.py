@@ -1,115 +1,87 @@
 import json
-from typing import List, Optional, Any, Callable
-import src.utils as utils
+from typing import List, Optional, Callable
 
-# Type hint for the provider's JSON extraction function
+# Type hint for the provider's JSON extraction function (can be refined later)
 ProviderJsonExtractor = Callable[[str], Optional[List[List[int]]]]
 
-def convert_single_integer_to_2d_list(data: str) -> Optional[List[List[int]]]:
-    """
-    If the input string represents a single integer, return it as a nested list.
-    Otherwise, return None.
-    """
-    try:
-        parsed_data = int(data)
-        result = [[parsed_data]]
-        return result
-    except ValueError:
-        pass
+# --- Helper Parsing Functions (Stubs) ---
+
+def _parse_json_code_block(response: str) -> Optional[List[List[int]]]:
+    """Attempts to extract and parse JSON from a ```json code block."""
+    # TODO: Implement logic to find and parse ```json blocks
+    print(f"DEBUG: Trying _parse_json_code_block on {response!r}") # Debug
     return None
 
-def convert_1d_list_to_2d_list(data: str) -> Optional[List[List[int]]]:
-    """
-    If the input string represents a single-item list containing one or more integers,
-    return it as a nested list. Otherwise, return None.
-    """
+def _parse_direct_json(response: str) -> Optional[List[List[int]]]:
+    """Attempts to parse the entire response string as JSON."""
+    # TODO: Implement direct json.loads parsing and validation
+    print(f"DEBUG: Trying _parse_direct_json on {response!r}") # Debug
     try:
-        # Remove whitespace and parse the string as JSON
-        parsed_data = json.loads(data.strip())
-        if isinstance(parsed_data, list) and 1 <= len(parsed_data) <= 30 and all(isinstance(item, int) for item in parsed_data):
-            result = [[item] for item in parsed_data]
-            return result
+        # Basic check - doesn't validate structure/content yet
+        parsed = json.loads(response.strip())
+        if isinstance(parsed, list): # Basic validation placeholder
+             # Needs proper validation like before
+             # return parsed # Temporarily returning raw parse for structure
+             pass
     except json.JSONDecodeError:
         pass
     return None
 
-def extract_json_from_response(response: str, provider_extractor: ProviderJsonExtractor) -> List[List[int]]:
-    """
-    Extract JSON from various possible formats in the response.
-    Requires a function `provider_extractor` to handle provider-specific LLM extraction as a fallback.
-    """
-    # 1. Try to extract JSON from code block (most precise method)
-    json_code_block_match = utils.extract_json_from_code_block(response)
-    if json_code_block_match:
-        return json_code_block_match
-    
-    # 2. Try to extract JSON grid from end of response (specialized for grid formats)
-    json_grid_match = utils.extract_json_grid_from_end(response)
-    if json_grid_match:
-        return json_grid_match
-    
-    # 3. Try to extract JSON array using regex (more general approach)
-    json_str_match = utils.regex_extract_json(response)
-    if json_str_match:
-        return json_str_match
-
-    # 4. Finally, use the provided provider extractor function (last resort)
-    json_llm_match = provider_extractor(response)
-    if json_llm_match:
-        return json_llm_match
-
-    # If all extraction methods fail, raise an exception
-    raise json.JSONDecodeError("Failed to extract valid JSON from the response", response, 0)
-
-def parse_and_validate_json(response: str, provider_extractor: ProviderJsonExtractor) -> List[List[int]]:
-    """
-    Parse the response string into JSON (List[List[int]]) and validate its structure.
-
-    Requires a function `provider_extractor` for the fallback mechanism in extract_json_from_response.
-    """
-    # Check for edge cases first
-    single_integer_match = convert_single_integer_to_2d_list(response)
-    if single_integer_match:
-        # Consider adding logging here instead of print if needed
-        # print(f"Extracted single integer: {single_integer_match}") 
-        return single_integer_match
-
-    one_d_match = convert_1d_list_to_2d_list(response)
-    if one_d_match:
-        # print(f"Extracted 1d list: {one_d_match}")
-        return one_d_match
-
-    # Try direct JSON parsing
+def _parse_single_int(response: str) -> Optional[List[List[int]]]:
+    """Attempts to parse the response as a single integer."""
+    # TODO: Implement single integer parsing
+    print(f"DEBUG: Trying _parse_single_int on {response!r}") # Debug
     try:
-        print(f"DEBUG: Trying json.loads on {response!r}") # Debug
-        parsed_json = json.loads(response)
-        print(f"DEBUG: json.loads succeeded: {parsed_json!r}") # Debug
-        # Proceed to validation
-    except json.JSONDecodeError as e:
-        print(f"DEBUG: json.loads failed: {e}") # Debug
-        # If raw parsing fails, try the advanced extraction methods
-        # print(f"Raw JSON parsing failed, trying extraction methods...")
-        parsed_json = extract_json_from_response(response, provider_extractor)
+        num = int(response.strip())
+        return [[num]]
+    except ValueError:
+        return None
 
-    # --- Validation --- 
-    # print(f"DEBUG: Validating parsed_json = {parsed_json!r}") # Debug
-    is_list = isinstance(parsed_json, list)
-    # print(f"DEBUG: Is list? {is_list}") # Debug
-    all_rows_are_lists = all(isinstance(row, list) for row in parsed_json) if is_list else False # Avoid error on non-list
-    # print(f"DEBUG: All rows are lists? {all_rows_are_lists}") # Debug
+def _parse_1d_list_as_2d(response: str) -> Optional[List[List[int]]]:
+    """Attempts to parse a 1D list like [1, 2] into [[1], [2]]. """
+    # TODO: Implement 1D list parsing and conversion
+    print(f"DEBUG: Trying _parse_1d_list_as_2d on {response!r}") # Debug
+    try:
+        parsed = json.loads(response.strip())
+        if isinstance(parsed, list) and all(isinstance(item, int) for item in parsed):
+             return [[item] for item in parsed]
+    except json.JSONDecodeError:
+        pass
+    return None
 
-    # 1. Validate Structure: Must be a list of lists
-    if not is_list or not all_rows_are_lists:
-        # print("DEBUG: Raising structure error") # Debug
-        raise ValueError("Invalid JSON structure: expected a list of lists")
 
-    # 2. Validate Content: Must contain only integers within the lists
-    # This check only runs if the structure validation passed.
-    all_items_are_ints = all(isinstance(item, int) for row in parsed_json for item in row)
-    # print(f"DEBUG: All items are ints? {all_items_are_ints}") # Debug
-    if not all_items_are_ints:
-        # print("DEBUG: Raising content error") # Debug
-        raise ValueError("Invalid JSON content: all items in sub-lists must be integers")
+# --- Main Parsing Orchestrator ---
 
-    # print("DEBUG: Validation passed") # Debug
-    return parsed_json 
+def parse_and_validate_json(response: str, provider_extractor: ProviderJsonExtractor) -> Optional[List[List[int]]]:
+    """
+    Orchestrates parsing by trying various helper functions.
+    Falls back to the provider_extractor if all helpers fail.
+    Returns the parsed List[List[int]] or None if all methods fail.
+    """
+    parsing_attempts = [
+        _parse_single_int,
+        _parse_1d_list_as_2d,
+        _parse_json_code_block,
+        _parse_direct_json,
+        # Add other parsing functions here in desired order
+    ]
+
+    for parser in parsing_attempts:
+        result = parser(response)
+        if result is not None:
+            # TODO: Add validation step here later
+            print(f"DEBUG: Parser {parser.__name__} succeeded: {result!r}") # Debug
+            return result # Return immediately on first success
+
+    # If all deterministic parsers fail, use the provider's extractor
+    print(f"DEBUG: All deterministic parsers failed, calling provider_extractor.") # Debug
+    provider_result = provider_extractor(response)
+    if provider_result is not None:
+        # TODO: Add validation step here later
+         print(f"DEBUG: provider_extractor succeeded: {provider_result!r}") # Debug
+         return provider_result
+
+    print(f"DEBUG: All parsing methods failed for response: {response!r}") # Debug
+    # Consider raising an error here if no method works, or returning None
+    # raise ValueError(f"Failed to parse response after all attempts: {response!r}")
+    return None # Or raise error

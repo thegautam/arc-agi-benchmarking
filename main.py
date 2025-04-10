@@ -73,10 +73,9 @@ class ARCTester:
             if attempt.metadata.choices:
                 last_choice = attempt.metadata.choices[-1]
                 if last_choice.message.content:
-                    # Use the imported parsing function
                     parsed_answer = parse_and_validate_json(
                         response=last_choice.message.content, 
-                        provider_extractor=self.provider.extract_json_from_response # Pass provider's method
+                        provider_extractor=self.provider.extract_json_from_response
                     )
                 else:
                     raise ValueError("Assistant response is empty")
