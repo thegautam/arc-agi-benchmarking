@@ -1,6 +1,6 @@
 import os
 from src.schemas import ARCPair, ModelConfig
-from typing import List, Dict, Any
+from typing import List
 import json
 import re
 import yaml
@@ -31,17 +31,6 @@ def get_test_input_from_task(data_dir, task_id) -> List[ARCPair]:
 
     return pairs
 
-def convert_2d_list_to_string(list_of_lists: List[List[int]]) -> str:
-    """
-    Convert a list of lists to a string
-    """
-
-    string_list = ""
-
-    for row in list_of_lists:
-        string_list += json.dumps(row) + "\n"
-
-    return string_list
 
 def save_submission(save_submission_dir: str, task_id: str, task_attempts) -> None:
     """
