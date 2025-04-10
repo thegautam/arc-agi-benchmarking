@@ -79,12 +79,10 @@ def parse_and_validate_json(response: str, provider_extractor: ProviderJsonExtra
         if result is not None:
             # Validate the structure: must be list of lists
             if isinstance(result, list) and all(isinstance(row, list) for row in result):
-                print(f"DEBUG: Parser {parser.__name__} succeeded and validated: {result!r}") # Debug
                 return result # Return immediately on first success and validation
             else:
                 # Raise error if structure is invalid, triggering retry in main loop
                 raise ValueError(f"Parser {parser.__name__} produced invalid structure: {result!r}")
 
-    print(f"DEBUG: All parsing methods failed for response: {response!r}") # Debug
     # Raise an error here if no method works, triggering retry in main loop
     raise ValueError(f"Failed to parse response after all attempts: {response!r}")
