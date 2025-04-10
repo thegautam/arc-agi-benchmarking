@@ -81,22 +81,35 @@ def parse_and_validate_json(response: str, provider_extractor: ProviderJsonExtra
 
     # Try direct JSON parsing
     try:
+        print(f"DEBUG: Trying json.loads on {response!r}") # Debug
         parsed_json = json.loads(response)
-        # print(f"Extracted raw JSON: {parsed_json}")
+        print(f"DEBUG: json.loads succeeded: {parsed_json!r}") # Debug
         # Proceed to validation
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        print(f"DEBUG: json.loads failed: {e}") # Debug
         # If raw parsing fails, try the advanced extraction methods
         # print(f"Raw JSON parsing failed, trying extraction methods...")
         parsed_json = extract_json_from_response(response, provider_extractor)
 
     # --- Validation --- 
+    # print(f"DEBUG: Validating parsed_json = {parsed_json!r}") # Debug
+    is_list = isinstance(parsed_json, list)
+    # print(f"DEBUG: Is list? {is_list}") # Debug
+    all_rows_are_lists = all(isinstance(row, list) for row in parsed_json) if is_list else False # Avoid error on non-list
+    # print(f"DEBUG: All rows are lists? {all_rows_are_lists}") # Debug
+
     # 1. Validate Structure: Must be a list of lists
-    if not isinstance(parsed_json, list) or not all(isinstance(row, list) for row in parsed_json):
+    if not is_list or not all_rows_are_lists:
+        # print("DEBUG: Raising structure error") # Debug
         raise ValueError("Invalid JSON structure: expected a list of lists")
 
     # 2. Validate Content: Must contain only integers within the lists
     # This check only runs if the structure validation passed.
-    if not all(isinstance(item, int) for row in parsed_json for item in row):
-         raise ValueError("Invalid JSON content: all items in sub-lists must be integers")
+    all_items_are_ints = all(isinstance(item, int) for row in parsed_json for item in row)
+    # print(f"DEBUG: All items are ints? {all_items_are_ints}") # Debug
+    if not all_items_are_ints:
+        # print("DEBUG: Raising content error") # Debug
+        raise ValueError("Invalid JSON content: all items in sub-lists must be integers")
 
+    # print("DEBUG: Validation passed") # Debug
     return parsed_json 

@@ -63,91 +63,120 @@ def test_parse_calls_1d_list(mock_provider_extractor):
     assert parse_and_validate_json(response, mock_provider_extractor) == expected
     mock_provider_extractor.assert_not_called()
 
-# Test case where direct json.loads fails, and fallback extraction is needed
-@patch('src.parsing.extract_json_from_response') # Patch the function in the parsing module
-def test_parse_uses_fallback_extraction(mock_extract_json, mock_provider_extractor):
+# Test case where direct parsing/conversion fails, relying on extract_json_from_response
+# We now let the actual extract_json_from_response (and its utils calls) run.
+@patch('src.parsing.utils.extract_json_from_code_block') # Still mock utils to control outcome
+@patch('src.parsing.utils.extract_json_grid_from_end')
+@patch('src.parsing.utils.regex_extract_json')
+def test_parse_uses_extraction_success(mock_regex, mock_grid, mock_code_block, mock_provider_extractor):
     response = "Some text [[1]] more text"
-    expected_fallback_result = [[1]]
-    mock_extract_json.return_value = expected_fallback_result
+    expected_result = [[1]]
+    # Simulate that regex_extract_json succeeds
+    mock_code_block.return_value = None
+    mock_grid.return_value = None
+    mock_regex.return_value = expected_result
+    # Provider extractor should not be needed/called
+    mock_provider_extractor.return_value = None 
 
-    # This input will fail convert_single_int, convert_1d_list, and json.loads
-    # It should then call extract_json_from_response
     result = parse_and_validate_json(response, mock_provider_extractor)
 
-    assert result == expected_fallback_result
-    mock_extract_json.assert_called_once_with(response, mock_provider_extractor)
-    mock_provider_extractor.assert_not_called() # The provider extractor is called *inside* the mocked extract_json
+    assert result == expected_result
+    mock_regex.assert_called_once_with(response)
+    mock_provider_extractor.assert_not_called() # Ensure fallback wasn't reached
 
-def test_parse_invalid_structure_after_fallback(mock_provider_extractor):
-    response = "invalid structure that needs fallback"
-    # Mock the fallback extractor to return something invalid
-    mock_provider_extractor.return_value = [1, [2]] # Not List[List[int]]
+def test_parse_invalid_structure_direct_load(mock_provider_extractor):
+    """Test invalid structure directly from json.loads"""
+    response = "[1, [2]]" # Invalid: Not List[List]
+    mock_provider_extractor.assert_not_called() # Should fail before needing extractor
+    with pytest.raises(ValueError, match="Invalid JSON structure"):
+        parse_and_validate_json(response, mock_provider_extractor)
+
+def test_parse_invalid_content_direct_load(mock_provider_extractor):
+    """Test invalid content directly from json.loads"""
+    # Use valid JSON with double quotes for strings
+    response = '[["a"], ["b"]]' # Invalid: Not List[List[int]]
+    with pytest.raises(ValueError, match="Invalid JSON content"):
+        parse_and_validate_json(response, mock_provider_extractor)
+
+def test_parse_all_deterministic_fail(mock_provider_extractor):
+    """Test when direct load, conversions, and all utils extractors fail."""
+    response = "completely unparseable string"
+    # Make the final fallback fail
+    mock_provider_extractor.return_value = None
     
-    # Patch the utils methods so extract_json_from_response calls the provider mock
-    with patch('src.parsing.utils.extract_json_from_code_block', return_value=None), \
-         patch('src.parsing.utils.extract_json_grid_from_end', return_value=None), \
-         patch('src.parsing.utils.regex_extract_json', return_value=None):
-        
-        with pytest.raises(ValueError, match="Invalid JSON structure"):
-            # parse_and_validate will call extract_json_from_response, which will call the mock_provider_extractor
-            parse_and_validate_json(response, mock_provider_extractor)
-            
-    mock_provider_extractor.assert_called_once_with(response)
-
-def test_parse_invalid_content_after_fallback(mock_provider_extractor):
-    response = "invalid content that needs fallback"
-    # Mock the fallback extractor to return list[list[str]]
-    mock_provider_extractor.return_value = [['a'], ['b']]
-    
-    with patch('src.parsing.utils.extract_json_from_code_block', return_value=None), \
-         patch('src.parsing.utils.extract_json_grid_from_end', return_value=None), \
-         patch('src.parsing.utils.regex_extract_json', return_value=None):
-
-        with pytest.raises(ValueError, match="Invalid JSON content"):
-             parse_and_validate_json(response, mock_provider_extractor)
-             
-    mock_provider_extractor.assert_called_once_with(response)
-
-def test_parse_all_fallbacks_fail(mock_provider_extractor):
-    response = "completely unparseable"
-    # Mock the provider extractor to also fail (return None or raise)
-    mock_provider_extractor.return_value = None # Simulate provider failure
-    
-    # Patch the utils methods to fail
+    # Patch utils to return None, simulating their failure on this input
     with patch('src.parsing.utils.extract_json_from_code_block', return_value=None), \
          patch('src.parsing.utils.extract_json_grid_from_end', return_value=None), \
          patch('src.parsing.utils.regex_extract_json', return_value=None):
              
+        # Expect JSONDecodeError because all extraction methods failed
         with pytest.raises(json.JSONDecodeError):
             parse_and_validate_json(response, mock_provider_extractor)
             
+    # Verify the provider extractor (the last step) was called
     mock_provider_extractor.assert_called_once_with(response)
 
-def test_parse_malformed_grid_example(mock_provider_extractor):
-    # This example is not valid JSON as is.
-    # It will fail direct parsing and potentially rely on utils or the provider extractor
+
+@pytest.mark.xfail(reason="Deterministic parsers cannot yet handle this malformed grid format.")
+def test_parse_malformed_grid_expect_success(mock_provider_extractor):
+    """Test the malformed grid, expecting success from deterministic parsing eventually."""
     response = (
         "[8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 6, 8, 8, 8, 8, 8, 8]\n"
         "[0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 6, 8, 0, 0, 0, 0, 0]\n"
-        # ... (rest of the malformed string) ...
+        "[8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 6, 8, 8, 8]\n"
+        "[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 6, 8, 0, 0]\n"
+        "[8, 8, 8, 8, 8, 8, 0, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]\n"
+        "[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n"
+        "[8, 8, 8, 8, 8, 8, 8, 6, 8, 8, 8, 8, 8, 8, 8, 8, 8]\n"
+        "[0, 0, 0, 0, 0, 0, 8, 6, 8, 0, 0, 0, 0, 0, 0, 0, 0]\n"
+        "[8, 8, 8, 8, 6, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]\n"
+        "[0, 0, 0, 8, 6, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n"
+        "[8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 0, 8, 8, 8, 8, 8, 8]\n"
+        "[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n"
+        "[8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 6, 8, 8, 8, 8, 8, 8]\n"
+        "[0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 6, 8, 0, 0, 0, 0, 0]\n"
+        "[8, 8, 8, 8, 8, 8, 8, 6, 8, 8, 8, 8, 8, 8, 8, 8, 8]\n"
+        "[0, 0, 0, 0, 0, 0, 8, 6, 8, 0, 0, 0, 0, 0, 0, 0, 0]\n"
+        "[8, 8, 8, 6, 8, 8, 8, 8, 8, 8, 8, 8, 6, 8, 8, 8, 8]\n"
+        "[0, 0, 8, 6, 8, 0, 0, 0, 0, 0, 0, 8, 6, 8, 0, 0, 0]\n"
         "[8, 8, 8, 8, 8, 8, 8, 0, 8, 8, 8, 8, 8, 8, 8, 8, 8]"
     )
-    # Mock the provider extractor to fail
+    # This is the structure we WANT the parser to extract eventually
+    expected_output = [
+        [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 6, 8, 8, 8, 8, 8, 8],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 6, 8, 0, 0, 0, 0, 0],
+        [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 6, 8, 8, 8],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 6, 8, 0, 0],
+        [8, 8, 8, 8, 8, 8, 0, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [8, 8, 8, 8, 8, 8, 8, 6, 8, 8, 8, 8, 8, 8, 8, 8, 8],
+        [0, 0, 0, 0, 0, 0, 8, 6, 8, 0, 0, 0, 0, 0, 0, 0, 0],
+        [8, 8, 8, 8, 6, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8],
+        [0, 0, 0, 8, 6, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 0, 8, 8, 8, 8, 8, 8],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 6, 8, 8, 8, 8, 8, 8],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 6, 8, 0, 0, 0, 0, 0],
+        [8, 8, 8, 8, 8, 8, 8, 6, 8, 8, 8, 8, 8, 8, 8, 8, 8],
+        [0, 0, 0, 0, 0, 0, 8, 6, 8, 0, 0, 0, 0, 0, 0, 0, 0],
+        [8, 8, 8, 6, 8, 8, 8, 8, 8, 8, 8, 8, 6, 8, 8, 8, 8],
+        [0, 0, 8, 6, 8, 0, 0, 0, 0, 0, 0, 8, 6, 8, 0, 0, 0],
+        [8, 8, 8, 8, 8, 8, 8, 0, 8, 8, 8, 8, 8, 8, 8, 8, 8]
+    ]
+
+    # Make the final fallback fail, forcing reliance on deterministic steps
     mock_provider_extractor.return_value = None 
     
-    # Assume utils also fail for this input for now
-    with patch('src.parsing.utils.extract_json_from_code_block', return_value=None), \
-         patch('src.parsing.utils.extract_json_grid_from_end', return_value=None), \
-         patch('src.parsing.utils.regex_extract_json', return_value=None):
-             
-        with pytest.raises(json.JSONDecodeError):
-            parse_and_validate_json(response, mock_provider_extractor)
-            
-    mock_provider_extractor.assert_called_once_with(response)
+    # Call the function - this is expected to fail currently but should eventually pass
+    # We don't patch the utils here, we want to see if the *real* ones can handle it
+    result = parse_and_validate_json(response, mock_provider_extractor)
+    
+    assert result == expected_output
+    mock_provider_extractor.assert_not_called() # Ideally, utils parse it, provider isn't called
 
 # --- Tests specifically for extract_json_from_response ---
 
-# We need more tests here to check the priority of utils methods
+# These priority tests remain the same as they test internal logic of extract_json_from_response
 @patch('src.parsing.utils.extract_json_from_code_block')
 @patch('src.parsing.utils.extract_json_grid_from_end')
 @patch('src.parsing.utils.regex_extract_json')
