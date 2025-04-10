@@ -54,34 +54,24 @@ def _parse_1d_list_as_2d(response: str) -> Optional[List[List[int]]]:
 
 def parse_and_validate_json(response: str, provider_extractor: ProviderJsonExtractor) -> Optional[List[List[int]]]:
     """
-    Orchestrates parsing by trying various helper functions.
-    Falls back to the provider_extractor if all helpers fail.
-    Returns the parsed List[List[int]] or None if all methods fail.
+    Orchestrates parsing by trying the provider extractor.
+    Returns the parsed List[List[int]] or raises ValueError if validation fails.
     """
     parsing_attempts = [
-        _parse_single_int,
-        _parse_1d_list_as_2d,
-        _parse_json_code_block,
-        _parse_direct_json,
-        # Add other parsing functions here in desired order
+        provider_extractor,
     ]
 
     for parser in parsing_attempts:
         result = parser(response)
         if result is not None:
-            # TODO: Add validation step here later
-            print(f"DEBUG: Parser {parser.__name__} succeeded: {result!r}") # Debug
-            return result # Return immediately on first success
-
-    # If all deterministic parsers fail, use the provider's extractor
-    print(f"DEBUG: All deterministic parsers failed, calling provider_extractor.") # Debug
-    provider_result = provider_extractor(response)
-    if provider_result is not None:
-        # TODO: Add validation step here later
-         print(f"DEBUG: provider_extractor succeeded: {provider_result!r}") # Debug
-         return provider_result
+            # Validate the structure: must be list of lists
+            if isinstance(result, list) and all(isinstance(row, list) for row in result):
+                print(f"DEBUG: Parser {parser.__name__} succeeded and validated: {result!r}") # Debug
+                return result # Return immediately on first success and validation
+            else:
+                # Raise error if structure is invalid, triggering retry in main loop
+                raise ValueError(f"Parser {parser.__name__} produced invalid structure: {result!r}")
 
     print(f"DEBUG: All parsing methods failed for response: {response!r}") # Debug
-    # Consider raising an error here if no method works, or returning None
-    # raise ValueError(f"Failed to parse response after all attempts: {response!r}")
-    return None # Or raise error
+    # Raise an error here if no method works, triggering retry in main loop
+    raise ValueError(f"Failed to parse response after all attempts: {response!r}")
