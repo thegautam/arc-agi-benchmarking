@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import src.utils as utils
 from src.schemas import ARCTaskOutput, ARCPair, Attempt
 from src.prompts.prompt_manager import convert_task_pairs_to_prompt
+from src.utils.parsing import parse_and_validate_json
 from typing import List, Any, Optional
 import os
 import argparse
@@ -42,94 +43,6 @@ class ARCTester:
         if self.print_logs:
             print(message)
 
-    def convert_single_integer_to_2d_list(self, data: str) -> Optional[List[List[int]]]:
-        """
-        If the input string represents a single integer, return it as a nested list.
-        Otherwise, return None.
-        """
-        try:
-            parsed_data = int(data)
-            result = [[parsed_data]]
-            return result
-        except ValueError:
-            pass
-        return None
-
-    def convert_1d_list_to_2d_list(self, data: str) -> Optional[List[List[int]]]:
-        """
-        If the input string represents a single-item list containing one or more integers,
-        return it as a nested list. Otherwise, return None.
-        """
-        try:
-            # Remove whitespace and parse the string as JSON
-            parsed_data = json.loads(data.strip())
-            if isinstance(parsed_data, list) and 1 <= len(parsed_data) <= 30 and all(isinstance(item, int) for item in parsed_data):
-                result = [[item] for item in parsed_data]
-                return result
-        except json.JSONDecodeError:
-            pass
-        return None
-
-    def extract_json_from_response(self, response: str) -> List[List[int]]:
-        """
-        Extract JSON from various possible formats in the response.
-        """
-        # 1. Try to extract JSON from code block (most precise method)
-        json_code_block_match = utils.extract_json_from_code_block(response)
-        if json_code_block_match:
-            return json_code_block_match
-        
-        # 2. Try to extract JSON grid from end of response (specialized for grid formats)
-        json_grid_match = utils.extract_json_grid_from_end(response)
-        if json_grid_match:
-            return json_grid_match
-        
-        # 3. Try to extract JSON array using regex (more general approach)
-        json_str_match = utils.regex_extract_json(response)
-        if json_str_match:
-            return json_str_match
-
-        # 4. Finally, use an LLM to extract the JSON (last resort)
-        json_llm_match = self.provider.extract_json_from_response(response)
-        if json_llm_match:
-            return json_llm_match
-    
-        # If all extraction methods fail, raise an exception
-        raise json.JSONDecodeError("Failed to extract valid JSON from the response", response, 0)
-
-    def parse_and_validate_json(self, response: str) -> ARCTaskOutput:
-        """
-        Parse the response string into JSON and validate its structure.
-
-        This is unfortunately a necessary evil.
-        """
-        single_integer_match = self.convert_single_integer_to_2d_list(response)
-        if single_integer_match:
-            print(f"Extracted single integer: {single_integer_match}")
-            return single_integer_match
-
-        # Try to convert 1d list to 2d list
-        # This is a band-aid hack when the LLM returns a single-item list containing an integer
-        one_d_match = self.convert_1d_list_to_2d_list(response)
-        if one_d_match:
-            print(f"Extracted 1d list: {one_d_match}")
-            return one_d_match
-
-        # First, try to parse the raw JSON response
-        try:
-            parsed_json = json.loads(response)
-            print(f"Extracted raw JSON: {parsed_json}")
-            return parsed_json
-        except:
-            # If raw parsing fails, try to extract JSON from various formats
-            parsed_json = self.extract_json_from_response(response)
-        
-        # Validate the structure of the parsed JSON
-        if not isinstance(parsed_json, list) or not all(isinstance(row, list) for row in parsed_json):
-            raise ValueError("Invalid JSON structure: expected a list of lists")
-        
-        return parsed_json
-        
     def predict_task_output(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int):
         """
         Given a task, predict the test output. This reponse may need parsing.
@@ -150,17 +63,20 @@ class ARCTester:
     def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int) -> Attempt:
         """
         Modified to return the full Attempt object instead of just the parsed answer
+        Uses the refactored parsing logic from src.parsing
         """
         # Get the initial response as an Attempt object
         attempt: Attempt = self.predict_task_output(training_pairs, test_input, task_id, test_id, pair_index)
 
         try:
-            # Parse the answer field but keep the full attempt object
             # Always use the last choice in the array (which should be the assistant's response)
             if attempt.metadata.choices:
                 last_choice = attempt.metadata.choices[-1]
                 if last_choice.message.content:
-                    parsed_answer = self.parse_and_validate_json(last_choice.message.content)
+                    parsed_answer = parse_and_validate_json(
+                        response=last_choice.message.content, 
+                        provider_extractor=self.provider.extract_json_from_response
+                    )
                 else:
                     raise ValueError("Assistant response is empty")
             else:
@@ -169,8 +85,8 @@ class ARCTester:
             # Update the answer in the original attempt - now accepts List[List[int]]
             attempt.answer = parsed_answer
             return attempt
-        except json.JSONDecodeError as e:
-            self.print_log(f"JSON parsing failed: {e}")
+        except (json.JSONDecodeError, ValueError) as e: # Catch parsing and validation errors
+            self.print_log(f"Parsing/Validation failed: {e}")
             raise
 
     def generate_task_solution(self, data_dir, task_id):
