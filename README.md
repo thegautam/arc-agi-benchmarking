@@ -13,7 +13,7 @@ This repo contains code for testing model baselines on ARC-AGI. The input data i
 
 ## ARC-AGI-1 vs ARC-AGI-2
 
-The task format for ARC-AGI-1 and ARC-AGI-2 are identical. You can point this testing hardness towards ARC-AGI-2 via the `--data_dir` parameter. When running with concurrency, ensure you're using the correct `<task_list>.txt` found in `data/task_lists/` for the set you're testing.
+The task format for ARC-AGI-1 and ARC-AGI-2 are identical. You can point this testing harness towards ARC-AGI-2 via the `--data_dir` parameter. When running with concurrency, ensure you're using the correct `<task_list>.txt` found in `data/task_lists/` for the set you're testing.
 
 ## Testing a single task
 
