@@ -5,6 +5,33 @@ models:
 #### OpenAI ####
 ################
 
+  - name: "gpt-4-1-nano-2025-04-14"
+    model_name: "gpt-4.1-nano-2025-04-14"
+    provider: "openai"
+    max_completion_tokens: 10000
+    pricing:
+      date: "2025-04-14"
+      input: 0.10
+      output: 0.40
+
+  - name: "gpt-4-1-mini-2025-04-14"
+    model_name: "gpt-4.1-mini-2025-04-14"
+    provider: "openai"
+    max_completion_tokens: 10000
+    pricing:
+      date: "2025-04-14"
+      input: 0.40
+      output: 1.60
+
+  - name: "gpt-4-1-2025-04-14"
+    model_name: "gpt-4.1-2025-04-14"
+    provider: "openai"
+    max_completion_tokens: 10000
+    pricing:
+      date: "2025-04-14"
+      input: 2.00
+      output: 8.00
+
   - name: "gpt-4o-2024-11-20"
     model_name: "gpt-4o-2024-11-20"
     provider: "openai"
