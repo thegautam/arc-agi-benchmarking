@@ -170,3 +170,6 @@ plan.md
 plan*.md
 models_private.yml
 .cursor
+
+# ignore local files
+*_local.sh
