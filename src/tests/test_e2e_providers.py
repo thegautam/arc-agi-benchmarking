@@ -4,7 +4,6 @@ from unittest.mock import patch, MagicMock
 import os
 import json
 
-# Import the class/function to test directly
 from main import ARCTester 
 from src.adapters import ProviderAdapter # Import base class for type hinting/mocking structure
 from src.schemas import Attempt, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails # Import necessary schemas
@@ -73,13 +72,12 @@ mock_provider_instance.make_prediction.return_value = mock_attempt
 # REMOVE extract_json_from_response configuration entirely
 # --- End Mock Provider ---
 
-# REMOVE patch for backscan_json_parser
 @patch('main.ARCTester.init_provider') 
 def test_gpt_4o_provider_e2e_mocked(mock_init_provider): # REMOVE mock_backscan_parser arg
     """Runs test by calling ARCTester directly, mocking provider via init_provider."""
     # Configure the mock init_provider to return our mock provider instance
     mock_init_provider.return_value = mock_provider_instance
-    # REMOVE backscan_parser configuration
+
 
     # --- Delete existing submission file if it exists --- 
     submission_filename = f"{TASK_ID}.json" 
@@ -112,8 +110,6 @@ def test_gpt_4o_provider_e2e_mocked(mock_init_provider): # REMOVE mock_backscan_
         # Assert that the mock provider's make_prediction was called
         mock_provider_instance.make_prediction.assert_called()
         print(f"Mock make_prediction call count: {mock_provider_instance.make_prediction.call_count}")
-            
-        # REMOVE assertions for backscan_parser and extract_json_from_response
         
         # Assert on the result or the saved file content
         assert result is not None, "generate_task_solution returned None"
