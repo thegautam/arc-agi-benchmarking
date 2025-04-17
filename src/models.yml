@@ -5,6 +5,66 @@ models:
 #### OpenAI ####
 ################
 
+  - name: "o3-2025-04-16-high"
+    model_name: "o3-2025-04-16"
+    provider: "openai"
+    reasoning_effort: "high"
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-04-16"
+      input: 10.00
+      output: 40.00
+
+  - name: "o3-2025-04-16-medium"
+    model_name: "o3-2025-04-16"
+    provider: "openai"
+    reasoning_effort: "medium"
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-04-16"
+      input: 10.00
+      output: 40.00
+
+  - name: "o3-2025-04-16-low"
+    model_name: "o3-2025-04-16"
+    provider: "openai"
+    reasoning_effort: "low"
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-04-16"
+      input: 10.00
+      output: 40.00
+
+  - name: "o4-mini-2025-04-16-high"
+    model_name: "o4-mini-2025-04-16"
+    provider: "openai"
+    reasoning_effort: "high"
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-04-16"
+      input: 1.10
+      output: 4.40
+
+  - name: "o4-mini-2025-04-16-medium"
+    model_name: "o4-mini-2025-04-16"
+    provider: "openai"
+    reasoning_effort: "medium"
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-04-16"
+      input: 1.10
+      output: 4.40
+
+  - name: "o4-mini-2025-04-16-low"
+    model_name: "o4-mini-2025-04-16"
+    provider: "openai"
+    reasoning_effort: "low"
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-04-16"
+      input: 1.10
+      output: 4.40
+
   - name: "gpt-4-1-nano-2025-04-14"
     model_name: "gpt-4.1-nano-2025-04-14"
     provider: "openai"
