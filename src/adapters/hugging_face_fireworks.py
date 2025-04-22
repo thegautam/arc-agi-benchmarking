@@ -6,7 +6,7 @@ from huggingface_hub import InferenceClient
 from datetime import datetime
 from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import logging
-from typing import Optional, Any, List, Dict
+from typing import Optional
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -14,15 +14,14 @@ logger = logging.getLogger(__name__)
 class HuggingFaceFireworksAdapter(ProviderAdapter):
     def init_client(self):
         """
-        Initialize the Hugging Face Fireworks model using HUGGING_FACE_API_KEY.
+        Initialize the Hugging Face Fireworks model
         """
-        api_key = os.environ.get("HUGGING_FACE_API_KEY")
-        if not api_key:
+        if not os.environ.get("HUGGING_FACE_API_KEY"):
             raise ValueError("HUGGING_FACE_API_KEY not found in environment variables")
         
         client = InferenceClient(
             provider="fireworks-ai",
-            api_key=api_key
+            api_key=os.environ.get("HUGGING_FACE_API_KEY")
         )
         return client
 
@@ -40,26 +39,11 @@ class HuggingFaceFireworksAdapter(ProviderAdapter):
         end_time = datetime.utcnow()
 
         # Use pricing from model config
-        input_cost_per_token = self.model_config.pricing.input / 1_000_000
-        output_cost_per_token = self.model_config.pricing.output / 1_000_000
+        input_cost_per_token = self.model_config.pricing.input / 1_000_000  # Convert from per 1M tokens
+        output_cost_per_token = self.model_config.pricing.output / 1_000_000  # Convert from per 1M tokens
         
-        prompt_tokens = getattr(response.usage, 'prompt_tokens', 0)
-        completion_tokens = getattr(response.usage, 'completion_tokens', 0)
-        total_tokens = getattr(response.usage, 'total_tokens', prompt_tokens + completion_tokens)
-        
-        usage = Usage(
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=total_tokens,
-            completion_tokens_details=CompletionTokensDetails(
-                reasoning_tokens=0, 
-                accepted_prediction_tokens=completion_tokens,
-                rejected_prediction_tokens=0
-            )
-        )
-        
-        prompt_cost = usage.prompt_tokens * input_cost_per_token
-        completion_cost = usage.completion_tokens * output_cost_per_token
+        prompt_cost = response.usage.prompt_tokens * input_cost_per_token
+        completion_cost = response.usage.completion_tokens * output_cost_per_token
 
         # Convert input messages to choices
         input_choices = [
@@ -73,19 +57,21 @@ class HuggingFaceFireworksAdapter(ProviderAdapter):
             for i, msg in enumerate(messages)
         ]
 
-        # Convert response to our schema
+        # Convert Hugging Face Fireworks response to our schema
         response_choices = [
             Choice(
                 index=len(input_choices),
                 message=Message(
-                    role=getattr(response.choices[0].message, 'role', 'assistant'),
-                    content=getattr(response.choices[0].message, 'content', '').strip()
+                    role=response.choices[0].message.role,
+                    content=response.choices[0].message.content.strip()
                 )
             )
         ]
 
+        # Combine input and response choices
         all_choices = input_choices + response_choices
 
+        # Create metadata using our Pydantic models
         metadata = AttemptMetadata(
             model=self.model_config.model_name,
             provider=self.model_config.provider,
@@ -93,7 +79,16 @@ class HuggingFaceFireworksAdapter(ProviderAdapter):
             end_timestamp=end_time,
             choices=all_choices,
             kwargs=self.model_config.kwargs,
-            usage=usage, 
+            usage=Usage(
+                prompt_tokens=response.usage.prompt_tokens,
+                completion_tokens=response.usage.completion_tokens,
+                total_tokens=response.usage.total_tokens,
+                completion_tokens_details=CompletionTokensDetails(
+                    reasoning_tokens=0,  # Hugging Face Fireworks doesn't provide this breakdown
+                    accepted_prediction_tokens=response.usage.completion_tokens,
+                    rejected_prediction_tokens=0  # Hugging Face Fireworks doesn't provide this
+                )
+            ),
             cost=Cost(
                 prompt_cost=prompt_cost,
                 completion_cost=completion_cost,
@@ -104,15 +99,15 @@ class HuggingFaceFireworksAdapter(ProviderAdapter):
             test_id=test_id
         )
 
-        response_content = getattr(response.choices[0].message, 'content', '').strip()
+        print(f"Response (response.choices[0].message): {response.choices[0].message.content.strip()}")
         attempt = Attempt(
             metadata=metadata,
-            answer=response_content
+            answer=response.choices[0].message.content.strip()
         )
 
         return attempt
 
-    def chat_completion(self, messages: List[Dict[str, str]]) -> Any:
+    def chat_completion(self, messages: str) -> str:
         return self.client.chat.completions.create(
             model=self.model_config.model_name,
             messages=messages,

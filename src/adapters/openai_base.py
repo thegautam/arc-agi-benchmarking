@@ -65,29 +65,77 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         """
         pass
         
-    @abc.abstractmethod
     def _get_usage(self, response: Any) -> Usage:
-        """
-        Extract usage information from the provider's response object.
-        Subclasses must implement this based on the provider's response structure.
-        """
-        pass
+        """Extract usage information from a standard OpenAI-like response object."""
+        # Implementation copied from OpenAIAdapter
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
+        reasoning_tokens = 0 # Default - subclasses can override if needed
 
-    @abc.abstractmethod
+        if hasattr(response, 'usage') and response.usage:
+            if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
+                prompt_tokens = getattr(response.usage, 'prompt_tokens', 0)
+                completion_tokens = getattr(response.usage, 'completion_tokens', 0)
+                total_tokens = getattr(response.usage, 'total_tokens', 0)
+                # Safely access potential reasoning tokens (still needs verification based on actual Grok/updated OpenAI responses)
+                if hasattr(response.usage, 'completion_tokens_details') and response.usage.completion_tokens_details and hasattr(response.usage.completion_tokens_details, 'reasoning_tokens'):
+                    reasoning_tokens = response.usage.completion_tokens_details.reasoning_tokens or 0
+            
+            else: # APIType.RESPONSES (Assume this structure if not CHAT_COMPLETIONS)
+                prompt_tokens = getattr(response.usage, 'input_tokens', 0)
+                completion_tokens = getattr(response.usage, 'output_tokens', 0)
+                total_tokens = prompt_tokens + completion_tokens # Responses API doesn't always return total
+                # Safely access potential reasoning tokens (still needs verification)
+                if hasattr(response.usage, 'output_tokens_details') and response.usage.output_tokens_details and hasattr(response.usage.output_tokens_details, 'reasoning_tokens'):
+                    reasoning_tokens = response.usage.output_tokens_details.reasoning_tokens or 0
+        else:
+            # Handle cases where usage might be missing (should log this appropriately)
+            print(f"Warning: Usage information missing or incomplete in response for model {self.model_config.model_name}") 
+            # Attempt basic calculation if possible (e.g., if we have token counts elsewhere)
+            # For now, just return zeros or defaults
+            pass # Keep defaults
+
+        # If total_tokens wasn't provided directly, calculate it
+        if total_tokens == 0 and (prompt_tokens > 0 or completion_tokens > 0):
+             total_tokens = prompt_tokens + completion_tokens
+
+        return Usage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            completion_tokens_details=CompletionTokensDetails(
+                reasoning_tokens=reasoning_tokens,
+                # Assume all completion tokens are accepted/rejected for now unless overridden
+                accepted_prediction_tokens=completion_tokens, 
+                rejected_prediction_tokens=0 
+            )
+        )
+
     def _get_content(self, response: Any) -> str:
-        """
-        Extract the main content string from the provider's response object.
-        Subclasses must implement this based on the provider's response structure.
-        """
-        pass
+        """Extract content from a standard OpenAI-like response object."""
+        # Implementation copied from OpenAIAdapter
+        content = ""
+        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
+            if hasattr(response, 'choices') and response.choices and hasattr(response.choices[0], 'message'):
+                content = getattr(response.choices[0].message, 'content', "") or ""
+        else: # APIType.RESPONSES
+            # Check standard attribute first
+            content = getattr(response, 'output_text', "")
+            # Fallback: Sometimes it might be in a 'choices' structure even for non-chat
+            if not content and hasattr(response, 'choices') and response.choices and hasattr(response.choices[0], 'text'):
+                 content = getattr(response.choices[0], 'text', "") or ""
+        return content.strip()
 
-    @abc.abstractmethod
     def _get_role(self, response: Any) -> str:
-        """
-        Extract the role (e.g., 'assistant') from the provider's response object.
-        Subclasses must implement this based on the provider's response structure.
-        """
-        pass
+        """Extract role from a standard OpenAI-like response object."""
+        # Implementation copied from OpenAIAdapter
+        role = "assistant" # Default role
+        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
+            if hasattr(response, 'choices') and response.choices and hasattr(response.choices[0], 'message'):
+                 role = getattr(response.choices[0].message, 'role', "assistant") or "assistant"
+        # Responses API implies assistant role for the main output
+        return role
         
     def _normalize_to_responses_kwargs(self):
         """
