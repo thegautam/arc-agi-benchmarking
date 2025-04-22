@@ -16,35 +16,6 @@ load_dotenv()
 
 class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
 
-    # Remove PROVIDER_API_KEYS dictionary
-    # PROVIDER_API_KEYS = {
-    #     "openai": "OPENAI_API_KEY",
-    #     "deepseek": "DEEPSEEK_API_KEY",
-    #     "fireworks": "FIREWORKS_API_KEY",
-    #     "huggingfacefireworks": "FIREWORKS_API_KEY", # HF uses Fireworks key
-    #     # Add other provider keys here (e.g., "groq": "GROQ_API_KEY")
-    # }
-
-    # Remove init_client method - subclasses will implement
-    # def init_client(self):
-    #     """
-    #     Initialize the OpenAI compatible client using the correct API key and base URL.
-    #     """
-    #     provider_name = self.model_config.provider
-    #     api_key_env_var = self.PROVIDER_API_KEYS.get(provider_name)
-    #     
-    #     if not api_key_env_var:
-    #         raise ValueError(f"API key environment variable not configured for provider: {provider_name}")
-    #         
-    #     api_key = os.environ.get(api_key_env_var)
-    #     if not api_key:
-    #         raise ValueError(f"{api_key_env_var} not found in environment variables for provider {provider_name}")
-    #     
-    #     # Use provider_url from config if available, otherwise default OpenAI URL
-    #     base_url = self.model_config.provider_url # Will be None if not set in config
-    #     
-    #     client = OpenAI(api_key=api_key, base_url=base_url)
-    #     return client
 
     @abc.abstractmethod
     def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
