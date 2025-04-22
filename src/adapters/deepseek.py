@@ -7,17 +7,18 @@ from datetime import datetime, timezone
 from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import logging
 from typing import Optional, Any, List, Dict
-
-# Import the base class we will now inherit from
 from .openai_base import OpenAIBaseAdapter
+import re
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
 class DeepseekAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter
+    """Adapter specific to Deepseek API endpoints and response structures."""
+
     def init_client(self):
         """
-        Initialize the Deepseek client using DEEPSEEK_API_KEY and hardcoded base URL.
+        Initialize the OpenAI client configured for Deepseek.
         """
         api_key = os.environ.get("DEEPSEEK_API_KEY")
         if not api_key:
@@ -28,64 +29,47 @@ class DeepseekAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter
 
     def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
         """
-        Make a prediction with the Deepseek model and return an Attempt object
+        Make a prediction using the Deepseek model.
+        Relies on OpenAIBaseAdapter for API calls and standard parsing.
         """
         start_time = datetime.now(timezone.utc)
         
-        messages = [
-            {"role": "user", "content": prompt}
-        ]
-        response = self.chat_completion(messages)
+        # Use the inherited call_ai_model
+        response = self.call_ai_model(prompt)
         
         end_time = datetime.now(timezone.utc)
 
         # Use pricing from model config
-        input_cost_per_token = self.model_config.pricing.input / 1_000_000  # Convert from per 1M tokens
-        output_cost_per_token = self.model_config.pricing.output / 1_000_000  # Convert from per 1M tokens
+        input_cost_per_token = self.model_config.pricing.input / 1_000_000
+        output_cost_per_token = self.model_config.pricing.output / 1_000_000
         
-        prompt_cost = response.usage.prompt_tokens * input_cost_per_token
-        completion_cost = response.usage.completion_tokens * output_cost_per_token
+        # Use the inherited _get_usage implementation
+        usage = self._get_usage(response)
+        
+        prompt_cost = usage.prompt_tokens * input_cost_per_token
+        completion_cost = usage.completion_tokens * output_cost_per_token
 
         # Convert input messages to choices
         input_choices = [
             Choice(
-                index=i,
-                message=Message(
-                    role=msg["role"],
-                    content=msg["content"]
-                )
+                index=0,
+                message=Message(role="user", content=prompt)
             )
-            for i, msg in enumerate(messages)
         ]
 
-        # Convert Deepseek response to our schema
+        # Convert Deepseek response (assumed OpenAI-compatible) using inherited helpers
         response_choices = [
             Choice(
-                index=len(input_choices),
+                index=1,
                 message=Message(
-                    role=response.choices[0].message.role,
-                    content=response.choices[0].message.content.strip()
+                    role=self._get_role(response),       # Inherited
+                    content=self._get_content(response)  # Inherited
                 )
             )
         ]
 
-        # Combine input and response choices
         all_choices = input_choices + response_choices
-        
-        # Manually create Usage object as Deepseek response structure might differ
-        # Set reasoning_tokens to 0 as it's not provided by Deepseek
-        usage = Usage(
-            prompt_tokens=response.usage.prompt_tokens,
-            completion_tokens=response.usage.completion_tokens,
-            total_tokens=response.usage.total_tokens,
-            completion_tokens_details=CompletionTokensDetails(
-                reasoning_tokens=0,  # Deepseek doesn't provide this breakdown
-                accepted_prediction_tokens=response.usage.completion_tokens,
-                rejected_prediction_tokens=0  # Deepseek doesn't provide this
-            )
-        )
 
-        # Create metadata using our Pydantic models
         metadata = AttemptMetadata(
             model=self.model_config.model_name,
             provider=self.model_config.provider,
@@ -93,7 +77,7 @@ class DeepseekAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter
             end_timestamp=end_time,
             choices=all_choices,
             kwargs=self.model_config.kwargs,
-            usage=usage, # Use manually created usage
+            usage=usage,
             cost=Cost(
                 prompt_cost=prompt_cost,
                 completion_cost=completion_cost,
@@ -106,12 +90,13 @@ class DeepseekAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter
 
         attempt = Attempt(
             metadata=metadata,
-            answer=response.choices[0].message.content.strip()
+            answer=self._get_content(response) # Inherited
         )
 
         return attempt
 
     def extract_json_from_response(self, input_response: str) -> list[list[int]] | None:
+        """Extract JSON using Deepseek-specific prompting and parsing (Original Implementation)."""
         prompt = f"""
 You are a helpful assistant. Extract only the JSON of the test output from the following response. 
 Do not include any explanation or additional text; only return valid JSON.
@@ -127,33 +112,39 @@ The JSON should be in this format:
 ]
 }}
 """
-        completion = self.chat_completion(
-            messages=[{"role": "user", "content": prompt}],
-        )
+        # Use the inherited chat_completion or call_ai_model, assuming CHAT_COMPLETIONS is appropriate
+        # If Deepseek needs the RESPONSES API, adjust this call.
+        try:
+            completion = self.chat_completion(
+                messages=[{"role": "user", "content": prompt}],
+            )
+            # Use inherited _get_content
+            assistant_content = self._get_content(completion)
+        except Exception as e:
+             print(f"Error during AI-based JSON extraction via Deepseek: {e}")
+             # Fallback: Try to parse the original input_response directly if AI fails
+             assistant_content = input_response
 
-        assistant_content = completion.choices[0].message.content.strip()
-
+        assistant_content = assistant_content.strip()
         # Some models like to wrap the response in a code block
         if assistant_content.startswith("```json"):
             assistant_content = "\n".join(assistant_content.split("\n")[1:])
         
         if assistant_content.endswith("```"):
             assistant_content = "\n".join(assistant_content.split("\n")[:-1])
+        
+        assistant_content = assistant_content.strip() # Strip again after potential ``` removal
 
         try:
             json_entities = json.loads(assistant_content)
-            return json_entities.get("response")
-        except json.JSONDecodeError:
+            # Original logic specifically looked for the 'response' key
+            potential_list = json_entities.get("response")
+            if isinstance(potential_list, list) and all(isinstance(item, list) for item in potential_list):
+                 # Optional: Add validation for inner list types if needed
+                 if all(isinstance(num, int) for sublist in potential_list for num in sublist):
+                     return potential_list
+            return None # Return None if 'response' key doesn't contain the expected list of lists
+        except (json.JSONDecodeError, AttributeError):
+             # Catch potential errors if parsing fails or .get returns None
             return None
 
-    # Add placeholder implementations for other abstract methods
-    # These are not used by DeepseekAdapter's make_prediction override, 
-    # but are required by the ABC.
-    def _get_usage(self, response: Any) -> Usage:
-        raise NotImplementedError("DeepseekAdapter uses its own logic within make_prediction")
-
-    def _get_content(self, response: Any) -> str:
-        raise NotImplementedError("DeepseekAdapter uses its own logic within make_prediction")
-
-    def _get_role(self, response: Any) -> str:
-        raise NotImplementedError("DeepseekAdapter uses its own logic within make_prediction")
