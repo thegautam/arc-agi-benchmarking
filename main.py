@@ -1,5 +1,5 @@
 import json
-from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter
+from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter
 from dotenv import load_dotenv
 import src.utils as utils
 from src.schemas import ARCTaskOutput, ARCPair, Attempt
@@ -36,6 +36,8 @@ class ARCTester:
             return HuggingFaceFireworksAdapter(self.config)
         elif provider_name == "fireworks":
             return FireworksAdapter(self.config)
+        elif provider_name == "grok":
+            return GrokAdapter(self.config)
         else:
             raise ValueError(f"Unsupported provider: {provider_name}")
         

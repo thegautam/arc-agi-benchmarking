@@ -7,3 +7,4 @@ from .deepseek import DeepseekAdapter
 from .gemini import GeminiAdapter
 from .hugging_face_fireworks import HuggingFaceFireworksAdapter
 from .fireworks import FireworksAdapter
+from .grok import GrokAdapter
