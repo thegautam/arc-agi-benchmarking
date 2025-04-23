@@ -47,9 +47,7 @@ class GrokAdapter(OpenAIBaseAdapter):
         input_cost_per_token = self.model_config.pricing.input / 1_000_000
         output_cost_per_token = self.model_config.pricing.output / 1_000_000
         
-        # Use the inherited _get_usage implementation
-        # This will attempt to parse standard OpenAI usage fields, including reasoning tokens if named typically.
-        # May need overriding in step 3b if Grok uses different field names.
+
         usage = self._get_usage(response)
         
         prompt_cost = usage.prompt_tokens * input_cost_per_token

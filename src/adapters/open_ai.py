@@ -108,38 +108,6 @@ class OpenAIAdapter(OpenAIBaseAdapter):
 
         return attempt
 
-    def call_ai_model(self, prompt: str):
-        """
-        Call the appropriate OpenAI API based on the api_type
-        """
-        messages = [{"role": "user", "content": prompt}]
-        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
-            return self.chat_completion(messages)
-        else:  # APIType.RESPONSES
-            # account for different parameter names between chat completions and responses APIs
-            self._normalize_to_responses_kwargs()
-            return self.responses(messages)
-    
-    def chat_completion(self, messages: list) -> str:
-        """
-        Make a call to the OpenAI Chat Completions API
-        """
-        return self.client.chat.completions.create(
-            model=self.model_config.model_name,
-            messages=messages,
-            **self.model_config.kwargs
-        )
-    
-    def responses(self, messages: list) -> str:
-        """
-        Make a call to the OpenAI Responses API
-        """
-        return self.client.responses.create(
-            model=self.model_config.model_name,
-            input=messages,
-            **self.model_config.kwargs
-        )
-
     def extract_json_from_response(self, input_response: str) -> list[list[int]] | None:
         prompt = f"""
 You are a helpful assistant. Extract only the JSON array of arrays from the following response. 
