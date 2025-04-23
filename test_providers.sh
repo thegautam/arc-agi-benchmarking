@@ -34,16 +34,17 @@ echo "Starting provider tests..."
 
 # Define test configurations
 CONFIGS=(
-    # "gpt-4-5-preview-2025-02-27 14754a24"
-    # # "o1_pro-2025-02-25 7bb29440"
-    # "gpt-4o-2024-11-20 f0afb749"
-    # "claude-3-7-sonnet-20250219 dc2e9a9d"
-    # "claude_opus f83cb3f6"
-    # "gemini-1-5-pro-002 baf41dbf"
-    # "deepseek_chat 93b4f4b3"
-    # "o3-mini-2025-01-31-high 94414823"
+    "gpt-4-5-preview-2025-02-27 14754a24"
+    "gpt-4-1-2025-04-14 7bb29440"
+    "gpt-4o-2024-11-20 f0afb749"
+    "claude-3-7-sonnet-20250219 dc2e9a9d"
+    "claude_opus f83cb3f6"
+    "gemini-1-5-pro-002 baf41dbf"
+    "deepseek_chat 93b4f4b3"
+    "o3-mini-2025-01-31-high 94414823"
     # "QwQ-32B d4b1c2b1"
     "QwQ-32B-Fireworks e57337a4"
+    "grok-3-beta d4b1c2b1"
 )
 
 # Create temporary file with active configurations
