@@ -112,8 +112,7 @@ The JSON should be in this format:
 ]
 }}
 """
-        # Use the inherited chat_completion or call_ai_model, assuming CHAT_COMPLETIONS is appropriate
-        # If Deepseek needs the RESPONSES API, adjust this call.
+
         try:
             completion = self.chat_completion(
                 messages=[{"role": "user", "content": prompt}],
