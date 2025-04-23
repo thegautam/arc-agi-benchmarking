@@ -85,20 +85,17 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
             else: # APIType.RESPONSES (Assume this structure if not CHAT_COMPLETIONS)
                 prompt_tokens = getattr(response.usage, 'input_tokens', 0)
                 completion_tokens = getattr(response.usage, 'output_tokens', 0)
-                total_tokens = prompt_tokens + completion_tokens # Responses API doesn't always return total
-                # Safely access potential reasoning tokens (still needs verification)
+                total_tokens = prompt_tokens + completion_tokens # Responses API doesn't always return total, calculate here
+                # Safely access potential reasoning tokens
                 if hasattr(response.usage, 'output_tokens_details') and response.usage.output_tokens_details and hasattr(response.usage.output_tokens_details, 'reasoning_tokens'):
                     reasoning_tokens = response.usage.output_tokens_details.reasoning_tokens or 0
+
         else:
             # Handle cases where usage might be missing (should log this appropriately)
             print(f"Warning: Usage information missing or incomplete in response for model {self.model_config.model_name}") 
             # Attempt basic calculation if possible (e.g., if we have token counts elsewhere)
             # For now, just return zeros or defaults
             pass # Keep defaults
-
-        # If total_tokens wasn't provided directly, calculate it
-        if total_tokens == 0 and (prompt_tokens > 0 or completion_tokens > 0):
-             total_tokens = prompt_tokens + completion_tokens
 
         return Usage(
             prompt_tokens=prompt_tokens,
@@ -111,6 +108,16 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                 rejected_prediction_tokens=0 
             )
         )
+
+    def _get_reasoning_summary(self, response: Any) -> Optional[str]:
+        """Extract reasoning summary from the response if available (primarily for Responses API)."""
+        reasoning_summary = None
+        if self.model_config.api_type == APIType.RESPONSES:
+            # Safely access potential reasoning summary
+            if hasattr(response, 'reasoning') and response.reasoning and hasattr(response.reasoning, 'summary'):
+                reasoning_summary = response.reasoning.summary # Will be None if not present
+        # Chat Completions API does not currently provide a separate summary field
+        return reasoning_summary
 
     def _get_content(self, response: Any) -> str:
         """Extract content from a standard OpenAI-like response object."""

@@ -49,9 +49,12 @@ class OpenAIAdapter(OpenAIBaseAdapter):
         
         # Get usage data
         usage = self._get_usage(response)
-        
+
         prompt_cost = usage.prompt_tokens * input_cost_per_token
         completion_cost = usage.completion_tokens * output_cost_per_token
+
+        # Get reasoning summary (will be None if not available or not Responses API)
+        reasoning_summary = self._get_reasoning_summary(response)
 
         # Convert input messages to choices
         input_choices = [
@@ -85,6 +88,7 @@ class OpenAIAdapter(OpenAIBaseAdapter):
             start_timestamp=start_time,
             end_timestamp=end_time,
             choices=all_choices,
+            reasoning_summary=reasoning_summary,
             kwargs=self.model_config.kwargs,
             usage=usage,
             cost=Cost(
