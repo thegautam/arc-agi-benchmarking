@@ -4,38 +4,42 @@ from dotenv import load_dotenv
 import json
 from openai import OpenAI
 from datetime import datetime, timezone
-from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
+from src.schemas import APIType, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import logging
 from typing import Optional, Any, List, Dict
-from .openai_base import OpenAIBaseAdapter
 import re
+
+# Import the base class
+from .openai_base import OpenAIBaseAdapter
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-class DeepseekAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter
-    """Adapter specific to Deepseek API endpoints and response structures."""
+class GrokAdapter(OpenAIBaseAdapter):
+    """Adapter specific to Grok API endpoints and response structures."""
 
     def init_client(self):
         """
-        Initialize the OpenAI client configured for Deepseek.
+        Initialize the OpenAI client configured for Grok API.
         """
-        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        api_key = os.environ.get("XAI_API_KEY")
         if not api_key:
-            raise ValueError("DEEPSEEK_API_KEY not found in environment variables")
+            raise ValueError("XAI_API_KEY not found in environment variables")
         
-        client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+        client = OpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
         return client
 
     def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
         """
-        Make a prediction using the Deepseek model.
+        Make a prediction using the Grok model.
         Relies on OpenAIBaseAdapter for API calls and standard parsing.
+        Specific reasoning token handling might require overriding _get_usage later.
         """
         start_time = datetime.now(timezone.utc)
         
         # Use the inherited call_ai_model
-        response = self.call_ai_model(prompt)
+        # Assumes Grok uses CHAT_COMPLETIONS or RESPONSES API type defined in config
+        response = self.call_ai_model(prompt) 
         
         end_time = datetime.now(timezone.utc)
 
@@ -43,7 +47,7 @@ class DeepseekAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter
         input_cost_per_token = self.model_config.pricing.input / 1_000_000
         output_cost_per_token = self.model_config.pricing.output / 1_000_000
         
-        # Use the inherited _get_usage implementation
+
         usage = self._get_usage(response)
         
         prompt_cost = usage.prompt_tokens * input_cost_per_token
@@ -57,7 +61,7 @@ class DeepseekAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter
             )
         ]
 
-        # Convert Deepseek response (assumed OpenAI-compatible) using inherited helpers
+        # Convert Grok response (assumed OpenAI-compatible) using inherited helpers
         response_choices = [
             Choice(
                 index=1,
@@ -77,7 +81,7 @@ class DeepseekAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter
             end_timestamp=end_time,
             choices=all_choices,
             kwargs=self.model_config.kwargs,
-            usage=usage,
+            usage=usage, 
             cost=Cost(
                 prompt_cost=prompt_cost,
                 completion_cost=completion_cost,
@@ -86,6 +90,7 @@ class DeepseekAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter
             task_id=task_id,
             pair_index=pair_index,
             test_id=test_id
+            # reasoning_summary will be added later when schema is updated
         )
 
         attempt = Attempt(
@@ -96,7 +101,8 @@ class DeepseekAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter
         return attempt
 
     def extract_json_from_response(self, input_response: str) -> list[list[int]] | None:
-        """Extract JSON using Deepseek-specific prompting and parsing (Original Implementation)."""
+        """Placeholder for Grok-specific JSON extraction. Assumes standard OpenAI format for now."""
+
         prompt = f"""
 You are a helpful assistant. Extract only the JSON of the test output from the following response. 
 Do not include any explanation or additional text; only return valid JSON.
@@ -112,38 +118,30 @@ The JSON should be in this format:
 ]
 }}
 """
-
         try:
+            # Use inherited chat_completion or call_ai_model
             completion = self.chat_completion(
                 messages=[{"role": "user", "content": prompt}],
             )
-            # Use inherited _get_content
-            assistant_content = self._get_content(completion)
+            assistant_content = self._get_content(completion) # Inherited
         except Exception as e:
-             print(f"Error during AI-based JSON extraction via Deepseek: {e}")
-             # Fallback: Try to parse the original input_response directly if AI fails
-             assistant_content = input_response
+            print(f"Error during AI-based JSON extraction via Grok: {e}")
+            assistant_content = input_response
 
+        # Parsing logic adapted from Deepseek/Fireworks
         assistant_content = assistant_content.strip()
-        # Some models like to wrap the response in a code block
         if assistant_content.startswith("```json"):
             assistant_content = "\n".join(assistant_content.split("\n")[1:])
-        
         if assistant_content.endswith("```"):
             assistant_content = "\n".join(assistant_content.split("\n")[:-1])
-        
-        assistant_content = assistant_content.strip() # Strip again after potential ``` removal
+        assistant_content = assistant_content.strip()
 
         try:
             json_entities = json.loads(assistant_content)
-            # Original logic specifically looked for the 'response' key
             potential_list = json_entities.get("response")
             if isinstance(potential_list, list) and all(isinstance(item, list) for item in potential_list):
-                 # Optional: Add validation for inner list types if needed
                  if all(isinstance(num, int) for sublist in potential_list for num in sublist):
                      return potential_list
-            return None # Return None if 'response' key doesn't contain the expected list of lists
-        except (json.JSONDecodeError, AttributeError):
-             # Catch potential errors if parsing fails or .get returns None
             return None
-
+        except (json.JSONDecodeError, AttributeError):
+            return None

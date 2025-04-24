@@ -51,7 +51,7 @@ class AttemptMetadata(BaseModel):
     start_timestamp: datetime
     end_timestamp: datetime
     choices: List[Choice]
-    reasoning_tokens: Optional[str] = None
+    reasoning_summary: Optional[str] = None
     kwargs: Dict[str, Any]
     usage: Usage
     cost: Cost

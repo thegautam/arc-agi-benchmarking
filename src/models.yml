@@ -213,6 +213,20 @@ models:
       output: 150.00
 
 ###################
+#### Grok (X.AI) ####
+###################
+
+  - name: "grok-3-beta"
+    model_name: "grok-3-beta"
+    provider: "grok"
+    max_completion_tokens: 8192
+    pricing:
+      date: "2025-04-22"
+      input: 3.00
+      output: 15.00
+    kwargs: {}
+
+###################
 #### Anthropic ####
 ###################
 

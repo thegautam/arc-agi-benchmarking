@@ -1,16 +1,19 @@
 from .provider import ProviderAdapter
+from .openai_base import OpenAIBaseAdapter
 import os
 from dotenv import load_dotenv
 import json
 from openai import OpenAI
 from datetime import datetime, timezone
 from src.schemas import APIType, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
-from typing import Optional
+from typing import Optional, Any, List, Dict
+
+import re
 
 load_dotenv()
 
 
-class OpenAIAdapter(ProviderAdapter):
+class OpenAIAdapter(OpenAIBaseAdapter):
 
 
     def init_client(self):
@@ -46,9 +49,12 @@ class OpenAIAdapter(ProviderAdapter):
         
         # Get usage data
         usage = self._get_usage(response)
-        
+
         prompt_cost = usage.prompt_tokens * input_cost_per_token
         completion_cost = usage.completion_tokens * output_cost_per_token
+
+        # Get reasoning summary (will be None if not available or not Responses API)
+        reasoning_summary = self._get_reasoning_summary(response)
 
         # Convert input messages to choices
         input_choices = [
@@ -82,6 +88,7 @@ class OpenAIAdapter(ProviderAdapter):
             start_timestamp=start_time,
             end_timestamp=end_time,
             choices=all_choices,
+            reasoning_summary=reasoning_summary,
             kwargs=self.model_config.kwargs,
             usage=usage,
             cost=Cost(
@@ -100,38 +107,6 @@ class OpenAIAdapter(ProviderAdapter):
         )
 
         return attempt
-
-    def call_ai_model(self, prompt: str):
-        """
-        Call the appropriate OpenAI API based on the api_type
-        """
-        messages = [{"role": "user", "content": prompt}]
-        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
-            return self.chat_completion(messages)
-        else:  # APIType.RESPONSES
-            # account for different parameter names between chat completions and responses APIs
-            self._normalize_to_responses_kwargs()
-            return self.responses(messages)
-    
-    def chat_completion(self, messages: list) -> str:
-        """
-        Make a call to the OpenAI Chat Completions API
-        """
-        return self.client.chat.completions.create(
-            model=self.model_config.model_name,
-            messages=messages,
-            **self.model_config.kwargs
-        )
-    
-    def responses(self, messages: list) -> str:
-        """
-        Make a call to the OpenAI Responses API
-        """
-        return self.client.responses.create(
-            model=self.model_config.model_name,
-            input=messages,
-            **self.model_config.kwargs
-        )
 
     def extract_json_from_response(self, input_response: str) -> list[list[int]] | None:
         prompt = f"""
@@ -189,7 +164,6 @@ IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting
             # If direct parsing fails, try to find and extract just the array part
             try:
                 # Look for array pattern and extract it
-                import re
                 array_pattern = r'\[\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\](?:\s*,\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\])*\s*\]'
                 match = re.search(array_pattern, assistant_content)
                 if match:
@@ -198,56 +172,3 @@ IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting
                 pass
             
             return None
-        
-    def _get_usage(self, response) -> Usage:
-        """
-        Extract usage information from the response based on the API type
-        """
-        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
-            prompt_tokens = response.usage.prompt_tokens
-            completion_tokens = response.usage.completion_tokens
-            total_tokens = response.usage.total_tokens
-            reasoning_tokens = 0
-            if hasattr(response.usage, 'completion_tokens_details') and hasattr(response.usage.completion_tokens_details, 'reasoning_tokens'):
-                reasoning_tokens = response.usage.completion_tokens_details.reasoning_tokens
-        else:  # APIType.RESPONSES
-            prompt_tokens = response.usage.input_tokens
-            completion_tokens = response.usage.output_tokens
-            total_tokens = prompt_tokens + completion_tokens
-            reasoning_tokens = 0
-            if hasattr(response.usage, 'output_tokens_details') and hasattr(response.usage.output_tokens_details, 'reasoning_tokens'):
-                reasoning_tokens = response.usage.output_tokens_details.reasoning_tokens
-        
-        return Usage(
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=total_tokens,
-            completion_tokens_details=CompletionTokensDetails(
-                reasoning_tokens=reasoning_tokens,
-                accepted_prediction_tokens=completion_tokens,
-                rejected_prediction_tokens=0
-            )
-        )
-
-    def _get_content(self, response):
-        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
-            return response.choices[0].message.content.strip()
-        else:  # APIType.RESPONSES
-            return response.output_text.strip()
-
-    def _get_role(self, response):
-        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
-            return response.choices[0].message.role
-        else:  # APIType.RESPONSES
-            return "assistant" # will always be assistant for responses API
-        
-    def _normalize_to_responses_kwargs(self):
-        """
-        Normalize kwargs based on API type to handle different parameter names between chat completions and responses APIs
-        """
-        if self.model_config.api_type == APIType.RESPONSES:
-            # Convert max_tokens and max_completion_tokens to max_output_tokens for responses API
-            if "max_tokens" in self.model_config.kwargs:
-                self.model_config.kwargs["max_output_tokens"] = self.model_config.kwargs.pop("max_tokens")
-            if "max_completion_tokens" in self.model_config.kwargs:
-                self.model_config.kwargs["max_output_tokens"] = self.model_config.kwargs.pop("max_completion_tokens")

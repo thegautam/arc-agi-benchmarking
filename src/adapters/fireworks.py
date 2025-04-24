@@ -3,72 +3,68 @@ import os
 from dotenv import load_dotenv
 import json
 from openai import OpenAI
-from datetime import datetime
-from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
+from datetime import datetime, timezone
+from src.schemas import APIType, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import logging
-from typing import Optional
+from typing import Optional, Any, List, Dict
+import re
+
+# Import the base class we will now inherit from
+from .openai_base import OpenAIBaseAdapter
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-class FireworksAdapter(ProviderAdapter):
+class FireworksAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter
     def init_client(self):
         """
-        Initialize the Fireworks model
+        Initialize the Fireworks client using FIREWORKS_API_KEY and hardcoded base URL.
         """
-        if not os.environ.get("FIREWORKS_API_KEY"):
+        api_key = os.environ.get("FIREWORKS_API_KEY")
+        if not api_key:
             raise ValueError("FIREWORKS_API_KEY not found in environment variables")
         
-        client = OpenAI(api_key=os.environ.get("FIREWORKS_API_KEY"), base_url="https://api.fireworks.ai/inference/v1")
+        client = OpenAI(api_key=api_key, base_url="https://api.fireworks.ai/inference/v1")
         return client
 
     def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
         """
-        Make a prediction with the Fireworks model and return an Attempt object
+        Make a prediction using the Fireworks model.
+        Relies on OpenAIBaseAdapter for API calls and standard parsing.
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
-        messages = [
-            {"role": "user", "content": prompt}
-        ]
-        response = self.chat_completion(messages)
+        response = self.call_ai_model(prompt)
         
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
 
-        # Use pricing from model config
-        input_cost_per_token = self.model_config.pricing.input / 1_000_000  # Convert from per 1M tokens
-        output_cost_per_token = self.model_config.pricing.output / 1_000_000  # Convert from per 1M tokens
+        input_cost_per_token = self.model_config.pricing.input / 1_000_000
+        output_cost_per_token = self.model_config.pricing.output / 1_000_000
         
-        prompt_cost = response.usage.prompt_tokens * input_cost_per_token
-        completion_cost = response.usage.completion_tokens * output_cost_per_token
+        usage = self._get_usage(response)
+        
+        prompt_cost = usage.prompt_tokens * input_cost_per_token
+        completion_cost = usage.completion_tokens * output_cost_per_token
 
-        # Convert input messages to choices
         input_choices = [
             Choice(
-                index=i,
-                message=Message(
-                    role=msg["role"],
-                    content=msg["content"]
-                )
+                index=0,
+                message=Message(role="user", content=prompt)
             )
-            for i, msg in enumerate(messages)
         ]
 
-        # Convert Fireworks response to our schema
         response_choices = [
             Choice(
-                index=len(input_choices),
+                index=1,
                 message=Message(
-                    role=response.choices[0].message.role,
-                    content=response.choices[0].message.content.strip()
+                    role=self._get_role(response),
+                    content=self._get_content(response)
                 )
             )
         ]
 
-        # Combine input and response choices
         all_choices = input_choices + response_choices
 
-        # Create metadata using our Pydantic models
         metadata = AttemptMetadata(
             model=self.model_config.model_name,
             provider=self.model_config.provider,
@@ -76,16 +72,7 @@ class FireworksAdapter(ProviderAdapter):
             end_timestamp=end_time,
             choices=all_choices,
             kwargs=self.model_config.kwargs,
-            usage=Usage(
-                prompt_tokens=response.usage.prompt_tokens,
-                completion_tokens=response.usage.completion_tokens,
-                total_tokens=response.usage.total_tokens,
-                completion_tokens_details=CompletionTokensDetails(
-                    reasoning_tokens=0,  # Fireworks doesn't provide this breakdown
-                    accepted_prediction_tokens=response.usage.completion_tokens,
-                    rejected_prediction_tokens=0  # Fireworks doesn't provide this
-                )
-            ),
+            usage=usage,
             cost=Cost(
                 prompt_cost=prompt_cost,
                 completion_cost=completion_cost,
@@ -98,49 +85,59 @@ class FireworksAdapter(ProviderAdapter):
 
         attempt = Attempt(
             metadata=metadata,
-            answer=response.choices[0].message.content.strip()
+            answer=self._get_content(response)
         )
 
         return attempt
 
-    def chat_completion(self, messages: str) -> str:
-        return self.client.chat.completions.create(
-            model=self.model_config.model_name,
-            messages=messages,
-            **self.model_config.kwargs
-        )
-
     def extract_json_from_response(self, input_response: str) -> list[list[int]] | None:
+        """Extract JSON specifically for Fireworks' potential response formats."""
         prompt = f"""
-You are a helpful assistant. Extract only the JSON of the test output from the following response. 
-Do not include any explanation or additional text; only return valid JSON.
+You are a helpful assistant. Extract only the JSON array of arrays from the following response. 
+Do not include any explanation, formatting, or additional text.
+Return ONLY the valid JSON array of arrays with integers.
 
 Response:
 {input_response}
 
-The JSON should be in this format:
-{{
-"response": [
-    [1, 2, 3],
-    [4, 5, 6]
-]
-}}
+Example of expected output format:
+[[1, 2, 3], [4, 5, 6]]
+
+IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting.
 """
-        completion = self.chat_completion(
-            messages=[{"role": "user", "content": prompt}],
-        )
-
-        assistant_content = completion.choices[0].message.content.strip()
-
-        # Some models like to wrap the response in a code block
-        if assistant_content.startswith("```json"):
-            assistant_content = "\n".join(assistant_content.split("\n")[1:])
+        try:
+            completion = self.call_ai_model(prompt=prompt) 
+            assistant_content = self._get_content(completion) 
+        except Exception as e:
+            print(f"Error during AI-based JSON extraction via Fireworks: {e}")
+            assistant_content = input_response
         
+        assistant_content = assistant_content.strip()
+        if assistant_content.startswith("```json"):
+            assistant_content = assistant_content[7:]
+        if assistant_content.startswith("```"):
+            assistant_content = assistant_content[3:]
         if assistant_content.endswith("```"):
-            assistant_content = "\n".join(assistant_content.split("\n")[:-1])
+            assistant_content = assistant_content[:-3]
+        assistant_content = assistant_content.strip()
 
         try:
-            json_entities = json.loads(assistant_content)
-            return json_entities.get("response")
-        except json.JSONDecodeError:
+            json_result = json.loads(assistant_content)
+            if isinstance(json_result, list) and all(isinstance(item, list) for item in json_result):
+                return json_result
+            if isinstance(json_result, dict) and "response" in json_result:
+                 json_response = json_result.get("response")
+                 if isinstance(json_response, list) and all(isinstance(item, list) for item in json_response):
+                    return json_response
             return None
+        except json.JSONDecodeError:
+             try:
+                array_pattern = r'\[\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\](?:\s*,\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\])*\s*\]'
+                match = re.search(array_pattern, assistant_content)
+                if match:
+                    parsed_match = json.loads(match.group(0))
+                    if isinstance(parsed_match, list) and all(isinstance(item, list) for item in parsed_match):
+                        return parsed_match
+             except:
+                 pass
+             return None
