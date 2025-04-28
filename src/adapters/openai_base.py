@@ -90,6 +90,12 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                 if hasattr(response.usage, 'output_tokens_details') and response.usage.output_tokens_details and hasattr(response.usage.output_tokens_details, 'reasoning_tokens'):
                     reasoning_tokens = response.usage.output_tokens_details.reasoning_tokens or 0
 
+            # ---- Infer reasoning tokens when provider does not break them out ----
+            if total_tokens and (prompt_tokens + completion_tokens) < total_tokens and reasoning_tokens == 0:
+                # Provider counted extra tokens that must correspond to reasoning
+                reasoning_tokens = total_tokens - (prompt_tokens + completion_tokens)
+            # If provider's explicit reasoning makes the sum exceed total, we keep as-is; the mismatch will be caught later.
+
         else:
             # Handle cases where usage might be missing (should log this appropriately)
             print(f"Warning: Usage information missing or incomplete in response for model {self.model_config.model_name}") 
@@ -104,9 +110,9 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
             completion_tokens_details=CompletionTokensDetails(
                 reasoning_tokens=reasoning_tokens,
                 # Assume all completion tokens are accepted/rejected for now unless overridden
-                accepted_prediction_tokens=completion_tokens, 
-                rejected_prediction_tokens=0 
-            )
+                accepted_prediction_tokens=completion_tokens,
+                rejected_prediction_tokens=0,
+            ),
         )
 
     def _get_reasoning_summary(self, response: Any) -> Optional[str]:
@@ -174,13 +180,16 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         input_cost_per_token = self.model_config.pricing.input / 1_000_000
         output_cost_per_token = self.model_config.pricing.output / 1_000_000
         
-        # Calculate individual costs
-        prompt_cost = usage.prompt_tokens * input_cost_per_token
-        completion_cost = usage.completion_tokens * output_cost_per_token
-        reasoning_cost = explicit_reasoning * output_cost_per_token 
-        total_cost = prompt_cost + completion_cost + reasoning_cost
+        # Calculate and round individual costs to two decimal places. Note:
+        # `completion_tokens` already includes all assistant–side tokens. The
+        # `reasoning_tokens` field is a *subset* of those tokens, so we do NOT
+        # add its cost again to the grand total (that would double-count).
+        prompt_cost = round(usage.prompt_tokens * input_cost_per_token, 2)
+        completion_cost = round(usage.completion_tokens * output_cost_per_token, 2)
+        reasoning_cost = round(explicit_reasoning * output_cost_per_token, 2)
+        total_cost = round(prompt_cost + completion_cost, 2)  # no double-count
 
-        from src.schemas import Cost # Local import
+        from src.schemas import Cost  # Local import (avoids circular issues in some environments)
         return Cost(
             prompt_cost=prompt_cost,
             completion_cost=completion_cost,

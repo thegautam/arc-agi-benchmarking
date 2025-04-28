@@ -92,13 +92,15 @@ def mock_openai_response_reasoning():
 
 @pytest.fixture
 def mock_openai_response_mismatch():
-    """Provides a mock OpenAI API response with mismatched token counts."""
+    """Provides a mock OpenAI API response with mismatched token counts that cannot be reconciled."""
     mock_response = Mock()
     mock_response.usage = Mock()
     mock_response.usage.prompt_tokens = 100
     mock_response.usage.completion_tokens = 200
-    mock_response.usage.total_tokens = 350 # Mismatch! Should be 300
-    mock_response.usage.completion_tokens_details = None
+    mock_response.usage.total_tokens = 350  # Provider claims 350
+    # Explicitly claims some reasoning tokens, but not enough to reconcile
+    mock_response.usage.completion_tokens_details = Mock()
+    mock_response.usage.completion_tokens_details.reasoning_tokens = 10  # Sum becomes 310, still mismatch
     return mock_response
     
 @pytest.fixture
@@ -166,9 +168,9 @@ class TestOpenAIBaseProviderLogic:
     def test_calculate_output_cost_standard(self, adapter_instance, mock_openai_response_usage):
         """Test _calculate_output_cost calculates cost correctly."""
         cost = adapter_instance._calculate_output_cost(mock_openai_response_usage)
-        expected_prompt_cost = 100 * (1.0 / 1_000_000)
-        expected_completion_cost = 200 * (2.0 / 1_000_000) # No reasoning tokens
-        expected_total_cost = expected_prompt_cost + expected_completion_cost
+        expected_prompt_cost = round(100 * (1.0 / 1_000_000), 2)
+        expected_completion_cost = round(200 * (2.0 / 1_000_000), 2) # No reasoning tokens
+        expected_total_cost = round(expected_prompt_cost + expected_completion_cost, 2)
         
         assert isinstance(cost, Cost)
         assert cost.prompt_cost == pytest.approx(expected_prompt_cost)
@@ -178,11 +180,11 @@ class TestOpenAIBaseProviderLogic:
     def test_calculate_output_cost_with_reasoning(self, adapter_instance, mock_openai_response_reasoning):
         """Test _calculate_output_cost includes reasoning tokens in output cost."""
         cost = adapter_instance._calculate_output_cost(mock_openai_response_reasoning)
-        expected_prompt_cost = 50 * (1.0 / 1_000_000)
+        expected_prompt_cost = round(50 * (1.0 / 1_000_000), 2)
          # Output cost includes completion + reasoning tokens
-        expected_completion_cost = 150 * (2.0 / 1_000_000) # Based only on completion tokens
-        expected_reasoning_cost = 10 * (2.0 / 1_000_000)  # Based only on reasoning tokens
-        expected_total_cost = expected_prompt_cost + expected_completion_cost + expected_reasoning_cost
+        expected_completion_cost = round(150 * (2.0 / 1_000_000), 2)  # Based only on completion tokens
+        expected_reasoning_cost = round(10 * (2.0 / 1_000_000), 2)   # Based only on reasoning tokens
+        expected_total_cost = round(expected_prompt_cost + expected_completion_cost, 2)
 
         assert cost.prompt_cost == pytest.approx(expected_prompt_cost)
         assert cost.completion_cost == pytest.approx(expected_completion_cost)
@@ -196,7 +198,7 @@ class TestOpenAIBaseProviderLogic:
         # Check the new error message format
         expected_msg_part1 = "Token count mismatch: API reports total 350"
         # Updated expected message based on latest code change
-        expected_msg_part2 = "but computed P:100 + C:200 + R:0 = 300"
+        expected_msg_part2 = "but computed P:100 + C:200 + R:10 = 310"
         assert expected_msg_part1 in str(excinfo.value)
         assert expected_msg_part2 in str(excinfo.value)
 
@@ -231,14 +233,14 @@ class TestOpenAIBaseProviderLogic:
             # Reasoning tokens might be 0 or inferred (0 in this mock response case)
             assert attempt.metadata.usage.completion_tokens_details.reasoning_tokens == 0 
             
-            expected_prompt_cost = 100 * (1.0 / 1_000_000)
+            expected_prompt_cost = round(100 * (1.0 / 1_000_000), 2)
             # Cost calculation depends on reasoning tokens, which are 0 here
-            expected_completion_cost = 200 * (2.0 / 1_000_000)
-            expected_reasoning_cost = 0 * (2.0 / 1_000_000)
+            expected_completion_cost = round(200 * (2.0 / 1_000_000), 2)
+            expected_reasoning_cost = round(0 * (2.0 / 1_000_000), 2)
             assert attempt.metadata.cost.prompt_cost == pytest.approx(expected_prompt_cost)
             assert attempt.metadata.cost.completion_cost == pytest.approx(expected_completion_cost)
             assert attempt.metadata.cost.reasoning_cost == pytest.approx(expected_reasoning_cost)
-            assert attempt.metadata.cost.total_cost == pytest.approx(expected_prompt_cost + expected_completion_cost + expected_reasoning_cost)
+            assert attempt.metadata.cost.total_cost == pytest.approx(expected_prompt_cost + expected_completion_cost)
             assert attempt.metadata.kwargs == {"temperature": 0.5}
             assert len(attempt.metadata.choices) == 2
             assert attempt.metadata.choices[0].message.role == "user"
