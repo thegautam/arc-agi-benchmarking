@@ -42,8 +42,9 @@ class Usage(BaseModel):
 
 class Cost(BaseModel):
     prompt_cost: float
-    completion_cost: float
-    total_cost: float
+    completion_cost: float # Cost of completion_tokens * output_cost_per_token
+    reasoning_cost: float  # Cost of reasoning_tokens * output_cost_per_token
+    total_cost: float      # Sum of prompt_cost, completion_cost, and reasoning_cost
 
 class AttemptMetadata(BaseModel):
     model: str

@@ -25,19 +25,19 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         """
         pass
 
-    def call_ai_model(self, prompt: str) -> Any:
+    def _call_ai_model(self, prompt: str) -> Any:
         """
         Call the appropriate OpenAI API based on the api_type
         """
         messages = [{"role": "user", "content": prompt}]
         if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
-            return self.chat_completion(messages)
+            return self._chat_completion(messages)
         else:  # APIType.RESPONSES
             # account for different parameter names between chat completions and responses APIs
             self._normalize_to_responses_kwargs()
-            return self.responses(messages)
+            return self._responses(messages)
     
-    def chat_completion(self, messages: List[Dict[str, str]]) -> Any:
+    def _chat_completion(self, messages: List[Dict[str, str]]) -> Any:
         """
         Make a call to the OpenAI Chat Completions API
         """
@@ -47,7 +47,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
             **self.model_config.kwargs
         )
     
-    def responses(self, messages: List[Dict[str, str]]) -> Any:
+    def _responses(self, messages: List[Dict[str, str]]) -> Any:
         """
         Make a call to the OpenAI Responses API
         """
@@ -154,3 +154,36 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                 self.model_config.kwargs["max_output_tokens"] = self.model_config.kwargs.pop("max_tokens")
             if "max_completion_tokens" in self.model_config.kwargs:
                 self.model_config.kwargs["max_output_tokens"] = self.model_config.kwargs.pop("max_completion_tokens") 
+
+    def _calculate_output_cost(self, response: Any) -> Cost:
+        """Calculate usage costs, validate token counts, and return a Cost object."""
+        usage = self._get_usage(response)
+        
+        # Validate token counts if total_tokens is provided
+        explicit_reasoning = getattr(usage.completion_tokens_details, 'reasoning_tokens', 0) or 0
+        computed_total = usage.prompt_tokens + usage.completion_tokens + explicit_reasoning
+        if usage.total_tokens and computed_total != usage.total_tokens:
+            from src.errors import TokenMismatchError # Local import
+            raise TokenMismatchError(
+                f"Token count mismatch: API reports total {usage.total_tokens}, "
+                f"but computed P:{usage.prompt_tokens} + C:{usage.completion_tokens} "
+                f"+ R:{explicit_reasoning} = {computed_total}"
+            )
+
+        # Determine costs per token
+        input_cost_per_token = self.model_config.pricing.input / 1_000_000
+        output_cost_per_token = self.model_config.pricing.output / 1_000_000
+        
+        # Calculate individual costs
+        prompt_cost = usage.prompt_tokens * input_cost_per_token
+        completion_cost = usage.completion_tokens * output_cost_per_token
+        reasoning_cost = explicit_reasoning * output_cost_per_token 
+        total_cost = prompt_cost + completion_cost + reasoning_cost
+
+        from src.schemas import Cost # Local import
+        return Cost(
+            prompt_cost=prompt_cost,
+            completion_cost=completion_cost,
+            reasoning_cost=reasoning_cost,
+            total_cost=total_cost,
+        ) 

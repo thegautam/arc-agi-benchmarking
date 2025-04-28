@@ -39,19 +39,18 @@ class GrokAdapter(OpenAIBaseAdapter):
         
         # Use the inherited call_ai_model
         # Assumes Grok uses CHAT_COMPLETIONS or RESPONSES API type defined in config
-        response = self.call_ai_model(prompt) 
+        response = self._call_ai_model(prompt)
         
         end_time = datetime.now(timezone.utc)
 
-        # Use pricing from model config
-        input_cost_per_token = self.model_config.pricing.input / 1_000_000
-        output_cost_per_token = self.model_config.pricing.output / 1_000_000
+        # Centralised cost calculation (includes sanity-check & calls _get_usage internally)
+        cost = self._calculate_output_cost(response)
         
-
+        # Retrieve usage *after* cost calculation, as cost calc might infer/update reasoning tokens
         usage = self._get_usage(response)
         
-        prompt_cost = usage.prompt_tokens * input_cost_per_token
-        completion_cost = usage.completion_tokens * output_cost_per_token
+        prompt_cost = usage.prompt_tokens * self.model_config.pricing.input / 1_000_000
+        completion_cost = usage.completion_tokens * self.model_config.pricing.output / 1_000_000
 
         # Convert input messages to choices
         input_choices = [
@@ -81,16 +80,11 @@ class GrokAdapter(OpenAIBaseAdapter):
             end_timestamp=end_time,
             choices=all_choices,
             kwargs=self.model_config.kwargs,
-            usage=usage, 
-            cost=Cost(
-                prompt_cost=prompt_cost,
-                completion_cost=completion_cost,
-                total_cost=prompt_cost + completion_cost
-            ),
+            usage=usage,
+            cost=cost,
             task_id=task_id,
             pair_index=pair_index,
             test_id=test_id
-            # reasoning_summary will be added later when schema is updated
         )
 
         attempt = Attempt(
@@ -120,7 +114,7 @@ The JSON should be in this format:
 """
         try:
             # Use inherited chat_completion or call_ai_model
-            completion = self.chat_completion(
+            completion = self._chat_completion(
                 messages=[{"role": "user", "content": prompt}],
             )
             assistant_content = self._get_content(completion) # Inherited

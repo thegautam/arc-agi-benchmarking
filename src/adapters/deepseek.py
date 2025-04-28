@@ -35,16 +35,19 @@ class DeepseekAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter
         start_time = datetime.now(timezone.utc)
         
         # Use the inherited call_ai_model
-        response = self.call_ai_model(prompt)
+        response = self._call_ai_model(prompt)
         
         end_time = datetime.now(timezone.utc)
+
+        # Centralised cost calculation (includes sanity-check & calls _get_usage internally)
+        cost = self._calculate_output_cost(response)
+
+        # Retrieve usage *after* cost calculation, as cost calc might infer/update reasoning tokens
+        usage = self._get_usage(response)
 
         # Use pricing from model config
         input_cost_per_token = self.model_config.pricing.input / 1_000_000
         output_cost_per_token = self.model_config.pricing.output / 1_000_000
-        
-        # Use the inherited _get_usage implementation
-        usage = self._get_usage(response)
         
         prompt_cost = usage.prompt_tokens * input_cost_per_token
         completion_cost = usage.completion_tokens * output_cost_per_token
@@ -78,11 +81,7 @@ class DeepseekAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter
             choices=all_choices,
             kwargs=self.model_config.kwargs,
             usage=usage,
-            cost=Cost(
-                prompt_cost=prompt_cost,
-                completion_cost=completion_cost,
-                total_cost=prompt_cost + completion_cost
-            ),
+            cost=cost,
             task_id=task_id,
             pair_index=pair_index,
             test_id=test_id
@@ -114,7 +113,7 @@ The JSON should be in this format:
 """
 
         try:
-            completion = self.chat_completion(
+            completion = self._chat_completion(
                 messages=[{"role": "user", "content": prompt}],
             )
             # Use inherited _get_content
