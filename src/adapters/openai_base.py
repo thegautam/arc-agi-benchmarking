@@ -165,15 +165,27 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         """Calculate usage costs, validate token counts, and return a Cost object."""
         usage = self._get_usage(response)
         
-        # Validate token counts if total_tokens is provided
-        explicit_reasoning = getattr(usage.completion_tokens_details, 'reasoning_tokens', 0) or 0
-        computed_total = usage.prompt_tokens + usage.completion_tokens + explicit_reasoning
-        if usage.total_tokens and computed_total != usage.total_tokens:
-            from src.errors import TokenMismatchError # Local import
+        # --- Determine reasoning tokens with two–case logic ---
+        pt = usage.prompt_tokens
+        ct = usage.completion_tokens
+        tt = usage.total_tokens or 0
+        rt_explicit = getattr(usage.completion_tokens_details, "reasoning_tokens", 0) or 0
+
+        if tt and (pt + ct) < tt:
+            # Case B – provider reported more tokens than prompt+completion.
+            reasoning_tokens = rt_explicit if rt_explicit else tt - (pt + ct)
+            computed_total = pt + ct + reasoning_tokens
+        else:
+            # Case A – prompt+completion already equal total (or total not provided).
+            reasoning_tokens = rt_explicit
+            computed_total = pt + ct if tt else pt + ct + reasoning_tokens  # When total missing, use full sum for sanity
+
+        # Re-validate token counts (only if total provided)
+        if tt and computed_total != tt:
+            from src.errors import TokenMismatchError  # Local import
             raise TokenMismatchError(
-                f"Token count mismatch: API reports total {usage.total_tokens}, "
-                f"but computed P:{usage.prompt_tokens} + C:{usage.completion_tokens} "
-                f"+ R:{explicit_reasoning} = {computed_total}"
+                f"Token count mismatch: API reports total {tt}, "
+                f"but computed P:{pt} + C:{ct} + R:{reasoning_tokens} = {computed_total}"
             )
 
         # Determine costs per token
@@ -184,9 +196,9 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         # `completion_tokens` already includes all assistant–side tokens. The
         # `reasoning_tokens` field is a *subset* of those tokens, so we do NOT
         # add its cost again to the grand total (that would double-count).
-        prompt_cost = round(usage.prompt_tokens * input_cost_per_token, 2)
-        completion_cost = round(usage.completion_tokens * output_cost_per_token, 2)
-        reasoning_cost = round(explicit_reasoning * output_cost_per_token, 2)
+        prompt_cost = round(pt * input_cost_per_token, 2)
+        completion_cost = round(ct * output_cost_per_token, 2)
+        reasoning_cost = round(reasoning_tokens * output_cost_per_token, 2)
         total_cost = round(prompt_cost + completion_cost, 2)  # no double-count
 
         from src.schemas import Cost  # Local import (avoids circular issues in some environments)
