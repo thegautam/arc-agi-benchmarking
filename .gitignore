@@ -173,3 +173,4 @@ models_private.yml
 
 # ignore local files
 *_local.sh
+*_plan.md
