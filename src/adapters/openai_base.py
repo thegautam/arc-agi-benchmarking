@@ -196,10 +196,10 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         # `completion_tokens` already includes all assistant–side tokens. The
         # `reasoning_tokens` field is a *subset* of those tokens, so we do NOT
         # add its cost again to the grand total (that would double-count).
-        prompt_cost = round(pt * input_cost_per_token, 2)
-        completion_cost = round(ct * output_cost_per_token, 2)
-        reasoning_cost = round(reasoning_tokens * output_cost_per_token, 2)
-        total_cost = round(prompt_cost + completion_cost, 2)  # no double-count
+        prompt_cost = pt * input_cost_per_token
+        completion_cost = ct * output_cost_per_token
+        reasoning_cost = reasoning_tokens * output_cost_per_token
+        total_cost = prompt_cost + completion_cost  # no double-count
 
         from src.schemas import Cost  # Local import (avoids circular issues in some environments)
         return Cost(

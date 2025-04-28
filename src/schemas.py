@@ -46,17 +46,6 @@ class Cost(BaseModel):
     reasoning_cost: float  # Cost of reasoning_tokens * output_cost_per_token
     total_cost: float      # Sum of prompt_cost, completion_cost, and reasoning_cost
 
-    @model_validator(mode="before")
-    @classmethod
-    def _round_costs(cls, values):
-        """Ensure all cost values are rounded to 2 decimal places for human readability."""
-        if isinstance(values, dict):
-            for key in ("prompt_cost", "completion_cost", "reasoning_cost", "total_cost"):
-                if key in values and values[key] is not None:
-                    # Use Python's built-in rounding; two decimals is sufficient for USD-style display
-                    values[key] = round(float(values[key]), 2)
-        return values
-
 class AttemptMetadata(BaseModel):
     model: str
     provider: str

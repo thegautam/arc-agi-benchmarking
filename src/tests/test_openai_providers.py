@@ -168,9 +168,9 @@ class TestOpenAIBaseProviderLogic:
     def test_calculate_output_cost_standard(self, adapter_instance, mock_openai_response_usage):
         """Test _calculate_output_cost calculates cost correctly."""
         cost = adapter_instance._calculate_output_cost(mock_openai_response_usage)
-        expected_prompt_cost = round(100 * (1.0 / 1_000_000), 2)
-        expected_completion_cost = round(200 * (2.0 / 1_000_000), 2) # No reasoning tokens
-        expected_total_cost = round(expected_prompt_cost + expected_completion_cost, 2)
+        expected_prompt_cost = 100 * (1.0 / 1_000_000)
+        expected_completion_cost = 200 * (2.0 / 1_000_000) # No reasoning tokens
+        expected_total_cost = expected_prompt_cost + expected_completion_cost
         
         assert isinstance(cost, Cost)
         assert cost.prompt_cost == pytest.approx(expected_prompt_cost)
@@ -180,11 +180,11 @@ class TestOpenAIBaseProviderLogic:
     def test_calculate_output_cost_with_reasoning(self, adapter_instance, mock_openai_response_reasoning):
         """Test _calculate_output_cost includes reasoning tokens in output cost."""
         cost = adapter_instance._calculate_output_cost(mock_openai_response_reasoning)
-        expected_prompt_cost = round(50 * (1.0 / 1_000_000), 2)
+        expected_prompt_cost = 50 * (1.0 / 1_000_000)
          # Output cost includes completion + reasoning tokens
-        expected_completion_cost = round(150 * (2.0 / 1_000_000), 2)  # Based only on completion tokens
-        expected_reasoning_cost = round(10 * (2.0 / 1_000_000), 2)   # Based only on reasoning tokens
-        expected_total_cost = round(expected_prompt_cost + expected_completion_cost, 2)
+        expected_completion_cost = 150 * (2.0 / 1_000_000)  # Based only on completion tokens
+        expected_reasoning_cost = 10 * (2.0 / 1_000_000)   # Based only on reasoning tokens
+        expected_total_cost = expected_prompt_cost + expected_completion_cost
 
         assert cost.prompt_cost == pytest.approx(expected_prompt_cost)
         assert cost.completion_cost == pytest.approx(expected_completion_cost)
@@ -233,10 +233,10 @@ class TestOpenAIBaseProviderLogic:
             # Reasoning tokens might be 0 or inferred (0 in this mock response case)
             assert attempt.metadata.usage.completion_tokens_details.reasoning_tokens == 0 
             
-            expected_prompt_cost = round(100 * (1.0 / 1_000_000), 2)
+            expected_prompt_cost = 100 * (1.0 / 1_000_000)
             # Cost calculation depends on reasoning tokens, which are 0 here
-            expected_completion_cost = round(200 * (2.0 / 1_000_000), 2)
-            expected_reasoning_cost = round(0 * (2.0 / 1_000_000), 2)
+            expected_completion_cost = 200 * (2.0 / 1_000_000)
+            expected_reasoning_cost = 0 * (2.0 / 1_000_000)
             assert attempt.metadata.cost.prompt_cost == pytest.approx(expected_prompt_cost)
             assert attempt.metadata.cost.completion_cost == pytest.approx(expected_completion_cost)
             assert attempt.metadata.cost.reasoning_cost == pytest.approx(expected_reasoning_cost)
