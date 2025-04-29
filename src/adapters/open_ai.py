@@ -39,19 +39,15 @@ class OpenAIAdapter(OpenAIBaseAdapter):
         start_time = datetime.now(timezone.utc)
         
 
-        response = self.call_ai_model(prompt)
+        response = self._call_ai_model(prompt)
         
         end_time = datetime.now(timezone.utc)
 
-        # Use pricing from model config
-        input_cost_per_token = self.model_config.pricing.input / 1_000_000  # Convert from per 1M tokens
-        output_cost_per_token = self.model_config.pricing.output / 1_000_000  # Convert from per 1M tokens
-        
-        # Get usage data
-        usage = self._get_usage(response)
+        # Centralised usage & cost calculation (includes sanity-check)
+        cost = self._calculate_cost(response)
 
-        prompt_cost = usage.prompt_tokens * input_cost_per_token
-        completion_cost = usage.completion_tokens * output_cost_per_token
+        # Retrieve usage *after* cost calculation, as cost calc might infer reasoning tokens
+        usage = self._get_usage(response)
 
         # Get reasoning summary (will be None if not available or not Responses API)
         reasoning_summary = self._get_reasoning_summary(response)
@@ -91,11 +87,7 @@ class OpenAIAdapter(OpenAIBaseAdapter):
             reasoning_summary=reasoning_summary,
             kwargs=self.model_config.kwargs,
             usage=usage,
-            cost=Cost(
-                prompt_cost=prompt_cost,
-                completion_cost=completion_cost,
-                total_cost=prompt_cost + completion_cost
-            ),
+            cost=cost,
             task_id=task_id,
             pair_index=pair_index,
             test_id=test_id

@@ -41,9 +41,10 @@ CONFIGS=(
     "claude_opus f83cb3f6"
     "gemini-1-5-pro-002 baf41dbf"
     "deepseek_chat 93b4f4b3"
-    "o3-mini-2025-01-31-high 94414823"
+    "o3-mini-2025-01-31-high 136b0064"
     # "QwQ-32B d4b1c2b1"
     "QwQ-32B-Fireworks e57337a4"
+    "grok-3-mini-beta 0934a4d8"
     "grok-3-beta d4b1c2b1"
 )
 
