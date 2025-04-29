@@ -321,9 +321,3 @@ class TestOpenAIBaseProviderLogic:
             assert attempt.metadata.choices[0].message.content == prompt
             assert attempt.metadata.choices[1].message.role == "assistant"
             assert attempt.metadata.choices[1].message.content == "Test Answer"
-
-# Specific tests targeting reasoning inference within _get_usage could be added if needed,
-# but the current cost tests implicitly cover that the correct rt is passed from _get_usage.
-# You could add similar tests specifically targeting GrokAdapter, DeepseekAdapter etc.
-# or parameterize the tests if the setup is sufficiently similar.
-# For now, this covers the core logic inherited from OpenAIBaseAdapter. 
