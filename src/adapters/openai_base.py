@@ -163,7 +163,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
             if "max_completion_tokens" in self.model_config.kwargs:
                 self.model_config.kwargs["max_output_tokens"] = self.model_config.kwargs.pop("max_completion_tokens") 
 
-    def _calculate_output_cost(self, response: Any) -> Cost:
+    def _calculate_cost(self, response: Any) -> Cost:
         """Calculate usage costs, validate token counts, and return a Cost object."""
         usage = self._get_usage(response)
         

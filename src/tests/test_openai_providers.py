@@ -200,10 +200,10 @@ class TestOpenAIBaseProviderLogic:
         # IMPORTANT: _get_usage itself infers reasoning here when rt_explicit=0 and pt+ct < tt
         assert usage.completion_tokens_details.reasoning_tokens == 20 # inferred rt
 
-    # --- Test _calculate_output_cost for different cases ---
-    def test_calculate_output_cost_case_a_no_reasoning(self, adapter_instance, mock_response_case_a_no_reasoning):
+    # --- Test _calculate_cost for different cases ---
+    def test_calculate_cost_case_a_no_reasoning(self, adapter_instance, mock_response_case_a_no_reasoning):
         """Test cost calculation for Case A (pt+ct=tt), no explicit reasoning."""
-        cost = adapter_instance._calculate_output_cost(mock_response_case_a_no_reasoning)
+        cost = adapter_instance._calculate_cost(mock_response_case_a_no_reasoning)
         # pt=100, ct_raw=200, rt_explicit=0
         # -> ct_for_cost = 200, rt_for_cost = 0
         expected_prompt_cost = 100 * (1.0 / 1_000_000)
@@ -217,9 +217,9 @@ class TestOpenAIBaseProviderLogic:
         assert cost.reasoning_cost == pytest.approx(expected_reasoning_cost)
         assert cost.total_cost == pytest.approx(expected_total_cost)
 
-    def test_calculate_output_cost_case_a_explicit_reasoning(self, adapter_instance, mock_response_case_a_explicit_reasoning):
+    def test_calculate_cost_case_a_explicit_reasoning(self, adapter_instance, mock_response_case_a_explicit_reasoning):
         """Test cost calculation for Case A (pt+ct=tt), explicit reasoning."""
-        cost = adapter_instance._calculate_output_cost(mock_response_case_a_explicit_reasoning)
+        cost = adapter_instance._calculate_cost(mock_response_case_a_explicit_reasoning)
         # pt=100, ct_raw=220, rt_explicit=20
         # -> ct_for_cost = 200 (220-20), rt_for_cost = 20
         expected_prompt_cost = 100 * (1.0 / 1_000_000)
@@ -232,9 +232,9 @@ class TestOpenAIBaseProviderLogic:
         assert cost.reasoning_cost == pytest.approx(expected_reasoning_cost)
         assert cost.total_cost == pytest.approx(expected_total_cost)
         
-    def test_calculate_output_cost_case_b_explicit_reasoning(self, adapter_instance, mock_response_case_b_explicit_reasoning):
+    def test_calculate_cost_case_b_explicit_reasoning(self, adapter_instance, mock_response_case_b_explicit_reasoning):
         """Test cost calculation for Case B (pt+ct<tt), explicit reasoning."""
-        cost = adapter_instance._calculate_output_cost(mock_response_case_b_explicit_reasoning)
+        cost = adapter_instance._calculate_cost(mock_response_case_b_explicit_reasoning)
         # pt=50, ct_raw=150, tt=210, rt_explicit=10
         # -> ct_for_cost = 150 (ct_raw), rt_for_cost = 10 (rt_explicit)
         expected_prompt_cost = 50 * (1.0 / 1_000_000)
@@ -247,9 +247,9 @@ class TestOpenAIBaseProviderLogic:
         assert cost.reasoning_cost == pytest.approx(expected_reasoning_cost)
         assert cost.total_cost == pytest.approx(expected_total_cost)
         
-    def test_calculate_output_cost_case_b_inferred_reasoning(self, adapter_instance, mock_response_case_b_inferred_reasoning):
+    def test_calculate_cost_case_b_inferred_reasoning(self, adapter_instance, mock_response_case_b_inferred_reasoning):
         """Test cost calculation for Case B (pt+ct<tt), inferred reasoning."""
-        cost = adapter_instance._calculate_output_cost(mock_response_case_b_inferred_reasoning)
+        cost = adapter_instance._calculate_cost(mock_response_case_b_inferred_reasoning)
         # pt=100, ct_raw=200, tt=320, rt_explicit=0
         # -> inferred rt = 20 (320 - (100+200))
         # -> ct_for_cost = 200 (ct_raw), rt_for_cost = 20 (inferred)
@@ -263,10 +263,10 @@ class TestOpenAIBaseProviderLogic:
         assert cost.reasoning_cost == pytest.approx(expected_reasoning_cost)
         assert cost.total_cost == pytest.approx(expected_total_cost)
 
-    def test_calculate_output_cost_token_mismatch_error(self, adapter_instance, mock_openai_response_mismatch):
-        """Test _calculate_output_cost raises TokenMismatchError on mismatch."""
+    def test_calculate_cost_token_mismatch_error(self, adapter_instance, mock_openai_response_mismatch):
+        """Test _calculate_cost raises TokenMismatchError on mismatch."""
         with pytest.raises(TokenMismatchError) as excinfo:
-            adapter_instance._calculate_output_cost(mock_openai_response_mismatch)
+            adapter_instance._calculate_cost(mock_openai_response_mismatch)
         # Check the specific error message format from the latest code
         # pt=100, ct_raw=200, tt=350, rt_explicit=10 -> Case B
         # ct_for_cost=200, rt_for_cost=10, pt=100 -> computed_total=310

@@ -44,7 +44,7 @@ class OpenAIAdapter(OpenAIBaseAdapter):
         end_time = datetime.now(timezone.utc)
 
         # Centralised usage & cost calculation (includes sanity-check)
-        cost = self._calculate_output_cost(response)
+        cost = self._calculate_cost(response)
 
         # Retrieve usage *after* cost calculation, as cost calc might infer reasoning tokens
         usage = self._get_usage(response)
