@@ -175,6 +175,7 @@ class TestOpenAIBaseProviderLogic:
         assert isinstance(cost, Cost)
         assert cost.prompt_cost == pytest.approx(expected_prompt_cost)
         assert cost.completion_cost == pytest.approx(expected_completion_cost)
+        assert cost.reasoning_cost == pytest.approx(0.0)
         assert cost.total_cost == pytest.approx(expected_total_cost)
 
     def test_calculate_output_cost_with_reasoning(self, adapter_instance, mock_openai_response_reasoning):
