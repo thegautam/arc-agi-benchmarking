@@ -164,7 +164,7 @@ cython_debug/
 .DS_Store
 
 # local files
-plan.md
+*_plan.md
 .python-version
 .vscode/
 plan*.md
