@@ -2,6 +2,7 @@ import json
 from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter
 from dotenv import load_dotenv
 import src.utils as utils
+from src.utils.metrics import timeit
 from src.schemas import ARCTaskOutput, ARCPair, Attempt
 from src.prompts.prompt_manager import convert_task_pairs_to_prompt
 from src.utils.parsing import parse_and_validate_json
@@ -91,6 +92,7 @@ class ARCTester:
             self.print_log(f"Parsing/Validation failed: {e}")
             raise
 
+    @timeit
     def generate_task_solution(self, data_dir, task_id):
         """
         data_dir: str, the directory of the data set to run
