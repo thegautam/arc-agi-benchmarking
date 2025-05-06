@@ -126,7 +126,8 @@ def read_provider_rate_limits() -> dict:
         FileNotFoundError: If provider_config.yml is not found.
         yaml.YAMLError: If there is an error parsing the YAML file.
     """
-    base_dir = os.path.dirname(os.path.dirname(__file__)) # src/
+    # Go up three levels from src/utils/task_utils.py to get to project root
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     provider_config_file = os.path.join(base_dir, "provider_config.yml")
 
     if not os.path.exists(provider_config_file):

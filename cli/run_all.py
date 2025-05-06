@@ -1,43 +1,89 @@
 import asyncio
 import os
-import argparse # For potential future enhancements, not used initially
+import argparse # For command-line arguments
 import time # Import time module for benchmarking
 from typing import List, Tuple, Dict, Any
+
+import sys # Add sys for path manipulation
+import logging # Added import for logger
+
+# Add the project root directory to sys.path
+# This allows cli/run_all.py to import 'main' and 'src' from the project root
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 # Imports from your project
 from main import ARCTester # The main class that runs a single test
 from src.utils.task_utils import read_models_config, read_provider_rate_limits
 from src.utils.rate_limiter import AsyncRequestRateLimiter
 
+# Tenacity imports
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, before_sleep_log
+
+# Attempt to import provider-specific exceptions for retrying
+try:
+    from anthropic import RateLimitError as AnthropicRateLimitError
+except ImportError:
+    AnthropicRateLimitError = None
+    logging.getLogger(__name__).warning("Anthropic SDK not installed or RateLimitError not found. Retries for Anthropic rate limits will not be specific.")
+
+try:
+    from openai import RateLimitError as OpenAIRateLimitError
+except ImportError:
+    OpenAIRateLimitError = None
+    logging.getLogger(__name__).warning("OpenAI SDK not installed or RateLimitError not found. Retries for OpenAI rate limits will not be specific.")
+
+try:
+    from google.api_core.exceptions import ResourceExhausted as GoogleResourceExhausted
+except ImportError:
+    GoogleResourceExhausted = None
+    logging.getLogger(__name__).warning("Google API Core SDK not installed or ResourceExhausted not found. Retries for Google rate limits will not be specific.")
+
+# Define RETRYABLE_EXCEPTIONS, filtering out any that couldn't be imported
+_RETRYABLE_EXCEPTIONS_CLASSES = tuple(
+    exc for exc in (AnthropicRateLimitError, OpenAIRateLimitError, GoogleResourceExhausted) if exc is not None
+)
+
+if not _RETRYABLE_EXCEPTIONS_CLASSES:
+    logging.getLogger(__name__).warning(
+        "No specific retryable exception classes were successfully imported. "
+        "Retries might not trigger as expected or might catch too broadly if fallback to general Exception is used."
+    )
+    # Fallback if no specific exceptions are available - you might want to make this stricter
+    # For example, by raising an error or using a very limited set of generic exceptions.
+    # For now, if none are defined, tenacity will retry on *any* exception by default unless
+    # retry_if_exception_type is very carefully used.
+    # We will explicitly use retry_if_exception_type with what we have.
+    # If _RETRYABLE_EXCEPTIONS_CLASSES is empty, tenacity might not retry as expected unless we provide a default.
+    # Let's make it retry on Exception if nothing specific is found, and log a warning.
+    EFFECTIVE_RETRYABLE_EXCEPTIONS = (Exception,) if not _RETRYABLE_EXCEPTIONS_CLASSES else _RETRYABLE_EXCEPTIONS_CLASSES
+else:
+    EFFECTIVE_RETRYABLE_EXCEPTIONS = _RETRYABLE_EXCEPTIONS_CLASSES
+
 # --- Configuration ---
-# List of (config_name, task_id) tuples to run
-# These should match the entries from your test_providers.sh script
-CONFIGS_AND_TASKS: List[Tuple[str, str]] = [
-    ("gpt-4-5-preview-2025-02-27", "14754a24"),
-    ("gpt-4-1-2025-04-14", "7bb29440"),
-    ("gpt-4o-2024-11-20", "f0afb749"),
-    ("claude-3-7-sonnet-20250219", "dc2e9a9d"),
-    ("claude_opus", "f83cb3f6"),
-    ("gemini-1-5-pro-002", "baf41dbf"),
-    ("deepseek_chat", "93b4f4b3"),
-    ("o3-mini-2025-01-31-high", "94414823"),
-    ("QwQ-32B-Fireworks", "e57337a4"),
-    ("grok-3-beta", "d4b1c2b1"),
+# Define which model configurations to test against the task list.
+# These are names from your models.yml file.
+MODEL_CONFIGS_TO_TEST: List[str] = [
+    "gpt-4o-2024-11-20",
+    # "claude_opus", # Commented out claude_opus
+    # Add other model config names here as desired, e.g.:
+    # "gemini-1-5-pro-002",
+    # "deepseek_chat",
 ]
 
-# Default parameters for ARCTester, matching test_providers.sh and main.py defaults
-# These could be made configurable via argparse if needed later
+# Default parameters for ARCTester - these can remain as they were
 DEFAULT_DATA_DIR = "data/arc-agi/data/evaluation"
-DEFAULT_SAVE_SUBMISSION_DIR = "." # Saves in the current directory where run_all.py is executed
+DEFAULT_SAVE_SUBMISSION_DIR_BASE = "submissions_run_all" # Base dir for submissions
 DEFAULT_OVERWRITE_SUBMISSION = False
-DEFAULT_PRINT_SUBMISSION = False # As per main.py, can be enabled by ARCTester's print_logs
+DEFAULT_PRINT_SUBMISSION = False
 DEFAULT_NUM_ATTEMPTS = 2
 DEFAULT_RETRY_ATTEMPTS = 2
-DEFAULT_PRINT_LOGS = True # To see output from ARCTester
+DEFAULT_PRINT_LOGS = True
 
 # --- Globals for Orchestrator ---
 PROVIDER_RATE_LIMITERS: Dict[str, AsyncRequestRateLimiter] = {}
-MODEL_CONFIG_CACHE: Dict[str, Any] = {} # Cache for read_models_config results
+MODEL_CONFIG_CACHE: Dict[str, Any] = {}
 
 def get_model_config(config_name: str):
     if config_name not in MODEL_CONFIG_CACHE:
@@ -47,138 +93,191 @@ def get_model_config(config_name: str):
 def get_or_create_rate_limiter(provider_name: str, all_provider_limits: Dict) -> AsyncRequestRateLimiter:
     if provider_name not in PROVIDER_RATE_LIMITERS:
         if provider_name not in all_provider_limits:
-            print(f"Warning: No rate limit configuration found for provider '{provider_name}' in provider_config.yml. Using default (1 req/sec).")
-            # Default fallback if a provider is in models.yml but not provider_config.yml
-            rate = 1
-            period = 1
+            print(f"Warning: No rate limit configuration found for provider '{provider_name}' in provider_config.yml. Using default (400 req/60s).")
+            # Default fallback: 400 requests per 60 seconds
+            default_config_rate = 400
+            default_config_period = 60
+            actual_rate_for_limiter = default_config_rate / default_config_period
+            actual_capacity_for_limiter = max(1.0, actual_rate_for_limiter)
         else:
             limits = all_provider_limits[provider_name]
-            rate = limits['rate']
-            period = limits['period']
-        
-        print(f"Initializing rate limiter for provider '{provider_name}' with rate={rate} requests per {period} seconds.")
-        PROVIDER_RATE_LIMITERS[provider_name] = AsyncRequestRateLimiter(rate=rate, period=period)
+            config_rate = limits['rate']
+            config_period = limits['period']
+            if config_period <= 0:
+                actual_rate_for_limiter = float('inf')
+                actual_capacity_for_limiter = float('inf')
+                print(f"Warning: Provider '{provider_name}' has period <= 0 in config. Treating as unconstrained.")
+            else:
+                calculated_rps = config_rate / config_period
+                actual_rate_for_limiter = calculated_rps
+                actual_capacity_for_limiter = max(1.0, calculated_rps)
+        print(f"Initializing rate limiter for provider '{provider_name}' with rate={actual_rate_for_limiter:.2f} req/s, capacity={actual_capacity_for_limiter:.2f}.")
+        PROVIDER_RATE_LIMITERS[provider_name] = AsyncRequestRateLimiter(rate=actual_rate_for_limiter, capacity=actual_capacity_for_limiter)
     return PROVIDER_RATE_LIMITERS[provider_name]
 
 async def run_single_test_wrapper(config_name: str, task_id: str, limiter: AsyncRequestRateLimiter) -> bool:
-    """
-    Wrapper to run a single ARCTester task in a thread, respecting the rate limiter.
-    Returns True on success, False on failure.
-    """
+    logger = logging.getLogger(__name__) # Get a logger instance
     print(f"[Orchestrator] 🔄 Queuing task: {task_id}, config: {config_name}")
+    save_submission_dir_for_config = os.path.join(DEFAULT_SAVE_SUBMISSION_DIR_BASE, config_name)
 
-    def synchronous_task_execution():
-        """This function will be run in a separate thread."""
-        try:
-            print(f"[Thread-{task_id}-{config_name}] Spawning ARCTester...")
-            arc_solver = ARCTester(
-                config=config_name,
-                save_submission_dir=DEFAULT_SAVE_SUBMISSION_DIR,
-                overwrite_submission=DEFAULT_OVERWRITE_SUBMISSION,
-                print_submission=DEFAULT_PRINT_SUBMISSION,
-                num_attempts=DEFAULT_NUM_ATTEMPTS,
-                retry_attempts=DEFAULT_RETRY_ATTEMPTS,
-                print_logs=DEFAULT_PRINT_LOGS
-            )
-            print(f"[Thread-{task_id}-{config_name}] Starting generate_task_solution...")
-            # generate_task_solution returns the attempts or None
-            result = arc_solver.generate_task_solution(
-                data_dir=DEFAULT_DATA_DIR,
-                task_id=task_id
-            )
-            # Consider a task successful if generate_task_solution doesn't raise an exception
-            # and potentially if it returns a non-None result (if that implies success)
-            # For now, any non-exception completion is a success from the orchestrator's view.
-            print(f"[Thread-{task_id}-{config_name}] ✅ Task completed.")
-            return True # Indicates successful execution of the method
-        except Exception as e:
-            print(f"[Thread-{task_id}-{config_name}] ❌ Exception during ARCTester execution: {e}")
-            # import traceback
-            # print(traceback.format_exc()) # For more detailed debugging
-            return False # Indicates failure
+    # Apply tenacity retry decorator directly to the synchronous function
+    @retry(
+        wait=wait_exponential(multiplier=1, min=4, max=60), # Exponential backoff: 1s, 2s, 4s, 8s... up to 60s
+        stop=stop_after_attempt(4), # Max 3 retries (1 initial + 3 retries = 4 attempts)
+        retry=retry_if_exception_type(EFFECTIVE_RETRYABLE_EXCEPTIONS),
+        before_sleep=before_sleep_log(logger, logging.WARNING) # Log before sleeping on retry
+    )
+    def _synchronous_task_execution_attempt_with_tenacity():
+        print(f"[Thread-{task_id}-{config_name}] Spawning ARCTester (Executing attempt)...")
+        arc_solver = ARCTester(
+            config=config_name,
+            save_submission_dir=save_submission_dir_for_config,
+            overwrite_submission=DEFAULT_OVERWRITE_SUBMISSION,
+            print_submission=DEFAULT_PRINT_SUBMISSION,
+            num_attempts=DEFAULT_NUM_ATTEMPTS,
+            retry_attempts=DEFAULT_RETRY_ATTEMPTS, # This is ARCTester's internal retries, distinct from tenacity
+            print_logs=DEFAULT_PRINT_LOGS
+        )
+        print(f"[Thread-{task_id}-{config_name}] Starting generate_task_solution...")
+        arc_solver.generate_task_solution(
+            data_dir=DEFAULT_DATA_DIR,
+            task_id=task_id
+        )
+        print(f"[Thread-{task_id}-{config_name}] ✅ Task attempt completed successfully.")
 
     try:
-        # Acquire the limiter before starting the thread-based execution
         async with limiter:
-            print(f"[Orchestrator] Rate limiter acquired for: {config_name} (Provider: {limiter._rate}req/{limiter._period}s). Executing task...")
-            success = await asyncio.to_thread(synchronous_task_execution)
+            logger.info(f"[Orchestrator] Rate limiter acquired for: {config_name}. Executing task with tenacity retries...")
+            # Run the decorated synchronous function in a thread
+            await asyncio.to_thread(_synchronous_task_execution_attempt_with_tenacity)
         
-        if success:
-            print(f"[Orchestrator] ✅ Successfully processed: {config_name} / {task_id}")
-        else:
-            print(f"[Orchestrator] ❌ Failed to process: {config_name} / {task_id} (see thread log for details)")
-        return success
+        logger.info(f"[Orchestrator] ✅ Successfully processed (with tenacity retries if any): {config_name} / {task_id}")
+        return True
     except Exception as e:
-        # This would catch issues with asyncio.to_thread or the limiter itself
-        print(f"[Orchestrator] 💥 Critical error for {config_name} / {task_id}: {e}")
+        # This catches exceptions if all tenacity retries fail, or non-retryable exceptions from ARCTester/to_thread itself.
+        # Tenacity's before_sleep_log would have logged retry attempts.
+        # The final error from tenacity (RetryError) or other exceptions will be caught here.
+        logger.error(f"[Orchestrator] ❌ Failed to process (after all tenacity retries or due to non-retryable error): {config_name} / {task_id}. Error: {type(e).__name__} - {e}", exc_info=True)
         return False
 
-async def main():
-    start_time = time.perf_counter() # Record start time
-    print("Starting ARC Test Orchestrator...")
+async def main(task_list_file: str):
+    # Basic logging setup - consider moving to a dedicated logging config function
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger(__name__) # Ensure main logger also uses this config.
+
+    start_time = time.perf_counter()
+    print(f"Starting ARC Test Orchestrator...")
+    print(f"Using task list: {task_list_file}")
+    print(f"Testing with model configurations: {MODEL_CONFIGS_TO_TEST}")
+
+    # 1. Load task IDs from the file
+    task_ids: List[str] = []
+    try:
+        with open(task_list_file, 'r') as f:
+            task_ids = [line.strip() for line in f if line.strip()]
+        if not task_ids:
+            print(f"Error: No task IDs found in {task_list_file}. Exiting.")
+            return
+        print(f"Loaded {len(task_ids)} task IDs from {task_list_file}.")
+    except FileNotFoundError:
+        print(f"Error: Task list file not found: {task_list_file}. Exiting.")
+        return
+
+    # 2. Generate all (config_name, task_id) pairs
+    all_jobs_to_run: List[Tuple[str, str]] = []
+    for config_name in MODEL_CONFIGS_TO_TEST:
+        for task_id in task_ids:
+            all_jobs_to_run.append((config_name, task_id))
     
-    # 1. Load all provider rate limits
+    if not all_jobs_to_run:
+        print("No jobs to run (check MODEL_CONFIGS_TO_TEST and task list file). Exiting.")
+        return
+    
+    print(f"Total jobs to process: {len(all_jobs_to_run)}")
+
+    # 3. Load provider rate limits
     try:
         all_provider_limits = read_provider_rate_limits()
         print(f"Loaded rate limits from provider_config.yml: {list(all_provider_limits.keys())}")
     except FileNotFoundError:
-        print("Error: provider_config.yml not found. Please create it with rate limit settings.")
-        print("See speedup_plan.md or previous messages for an example structure.")
-        print("Proceeding with default rate limits (1 req/sec per provider if encountered)." )
+        print("Warning: provider_config.yml not found. Using default rate limits (100 req/60s per provider).")
         all_provider_limits = {}
-    except Exception as e: # Catch other parsing errors from read_provider_rate_limits
-        print(f"Error reading or parsing provider_config.yml: {e}")
-        print("Proceeding with default rate limits (1 req/sec per provider if encountered)." )
+    except Exception as e:
+        print(f"Warning: Error reading or parsing provider_config.yml: {e}. Using default rate limits.")
         all_provider_limits = {}
 
-    # 2. Prepare tasks
-    async_tasks = []
-    for config_name, task_id in CONFIGS_AND_TASKS:
+    # 4. Prepare async tasks
+    async_tasks_to_execute = []
+    for config_name, task_id in all_jobs_to_run:
         try:
-            model_config = get_model_config(config_name)
-            provider_name = model_config.provider
+            model_config_obj = get_model_config(config_name) # Renamed for clarity
+            provider_name = model_config_obj.provider
             limiter = get_or_create_rate_limiter(provider_name, all_provider_limits)
-            async_tasks.append(run_single_test_wrapper(config_name, task_id, limiter))
-        except ValueError as e: # Catch errors from read_models_config (e.g. model not found)
-            print(f"Skipping config '{config_name}' due to error: {e}")
+            async_tasks_to_execute.append(run_single_test_wrapper(config_name, task_id, limiter))
+        except ValueError as e:
+            print(f"Skipping config '{config_name}' for task '{task_id}' due to model config error: {e}")
         except Exception as e:
             print(f"Unexpected error setting up task for '{config_name}', '{task_id}': {e}")
 
-    if not async_tasks:
-        print("No tasks to run. Exiting.")
+    if not async_tasks_to_execute:
+        print("No tasks could be prepared for execution. Exiting.")
         return
 
-    # 3. Run tasks concurrently
-    print(f"\nExecuting {len(async_tasks)} tasks concurrently...")
-    results = await asyncio.gather(*async_tasks)
+    # 5. Run tasks concurrently
+    print(f"\nExecuting {len(async_tasks_to_execute)} tasks concurrently...")
+    results = await asyncio.gather(*async_tasks_to_execute, return_exceptions=True) # Added return_exceptions
 
-    # 4. Report summary
+    # 6. Report summary
     successful_runs = sum(1 for r in results if r is True)
-    failed_runs = len(results) - successful_runs
+    # exceptions_caught = sum(1 for r in results if isinstance(r, Exception))
+    # failed_wrapper_calls = sum(1 for r in results if r is False and not isinstance(r, Exception))
+    # total_processed = len(results)
+
+    # A result is False if synchronous_task_execution returned False (exception in ARCTester)
+    # or if run_single_test_wrapper itself had a critical error.
+    # A result is an Exception if asyncio.gather caught it from one of the coroutines.
+    orchestrator_level_failures = sum(1 for r in results if r is False or isinstance(r, Exception))
 
     print("\n--- Orchestrator Summary ---")
-    if failed_runs == 0:
+    if orchestrator_level_failures == 0:
         print(f"✨ All {successful_runs} test configurations completed successfully by the orchestrator.")
         exit_code = 0
     else:
-        print(f"💥 {failed_runs} out of {len(results)} test configurations failed or encountered errors during orchestration.")
+        print(f"💥 {orchestrator_level_failures} out of {len(results)} test configurations failed or encountered errors during orchestration.")
+        # Detailed error logging for exceptions caught by gather
+        for i, res in enumerate(results):
+            if isinstance(res, Exception):
+                original_job = all_jobs_to_run[i] # Assuming results are in order
+                print(f"  - Error for {original_job[0]}/{original_job[1]}: {type(res).__name__} - {str(res)}")
+            elif res is False:
+                original_job = all_jobs_to_run[i]
+                print(f"  - Failure reported by wrapper for {original_job[0]}/{original_job[1]} (check thread log)")
+
         exit_code = 1
     
     print("Note: Individual task success/failure is logged by ARCTester within the thread logs.")
-    print("Orchestrator failure indicates an issue with running the ARCTester task itself.")
+    print("Orchestrator failure indicates an issue with running the ARCTester task itself or an unhandled exception in the wrapper.")
     
-    if exit_code != 0:
-        print("\nCheck logs above for specific errors.") # Reminder to check logs
-    
-    end_time = time.perf_counter() # Record end time
+    end_time = time.perf_counter()
     total_duration = end_time - start_time
     print(f"\n--- Orchestrator Timing ---")
     print(f"Total execution time for cli/run_all.py: {total_duration:.2f} seconds")
     
+    # Ensure metrics are dumped if atexit doesn't run due to early/error exit
+    # This might be redundant if atexit always fires, but can be a safeguard.
+    # from src.utils.metrics import _dump_all as dump_metrics_now
+    # dump_metrics_now() # Consider if this is needed or if atexit is reliable enough
+
     exit(exit_code)
 
 if __name__ == "__main__":
-    # Ensure the current working directory allows imports from src and main.py
-    # This usually means running from the root of the model_baseline project.
-    # Example: python cli/run_all.py
-    asyncio.run(main()) 
+    parser = argparse.ArgumentParser(description="Run ARC tasks concurrently using specified model configurations and a task list file.")
+    parser.add_argument(
+        "--task_list_file", 
+        type=str, 
+        default="data/task_lists/public_evaluation_v1.txt", 
+        help="Path to the .txt file containing task IDs, one per line. Defaults to data/task_lists/public_evaluation_v1.txt"
+    )
+    args = parser.parse_args()
+
+    asyncio.run(main(task_list_file=args.task_list_file)) 
