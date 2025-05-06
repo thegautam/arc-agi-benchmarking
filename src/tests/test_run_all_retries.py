@@ -11,20 +11,13 @@ from unittest.mock import patch, MagicMock
 # For now, sticking to the simpler form based on common pytest setups from project root.
 from cli.run_all import run_single_test_wrapper, AsyncRequestRateLimiter
 
-# Define our own simple exception for testing retry logic.
-# This avoids needing to correctly instantiate complex SDK exceptions like openai.RateLimitError.
-class TestRetryableException(Exception):
-    """A simple exception to simulate retryable errors for testing."""
-    pass
+# This class was unused and causing a PytestCollectionWarning. Removing it.
+# class TestRetryableException(Exception):
+#     """A simple exception to simulate retryable errors for testing."""
+#     pass
 
-# The APICallSimulator will use this TestRetryableException.
-# We rely on cli/run_all.py's EFFECTIVE_RETRYABLE_EXCEPTIONS either specifically listing
-# this type (if we were to inject it) or falling back to a broader type like 'Exception'
-# which our TestRetryableException inherits from.
-# Given cli/run_all.py's current fallback to (Exception,) if specific SDK exceptions
-# aren't found, this approach should work for testing the retry mechanism.
-
-class TestRetryableExceptionInTestScope(Exception):
+# Renamed to start with an underscore to avoid pytest collection warnings
+class _TestRetryableExceptionInTestScope(Exception):
     """A simple exception defined in the test scope to simulate retryable errors."""
     pass
 
@@ -60,7 +53,7 @@ async def test_retry_and_eventual_success(caplog): # Only pytest fixtures like c
     
     # Use patch as a context manager
     # The target string for EFFECTIVE_RETRYABLE_EXCEPTIONS should be where it's defined and used by tenacity.
-    with patch('cli.run_all.EFFECTIVE_RETRYABLE_EXCEPTIONS', (TestRetryableExceptionInTestScope,)) as _mocked_retry_config:
+    with patch('cli.run_all.EFFECTIVE_RETRYABLE_EXCEPTIONS', (_TestRetryableExceptionInTestScope,)) as _mocked_retry_config:
         # _mocked_retry_config is the new value tuple, not a MagicMock. We don't typically use it directly.
         with patch('cli.run_all.ARCTester') as MockARCTesterClass: # MockARCTesterClass is the mock of the ARCTester class
             mock_arc_instance = MockARCTesterClass.return_value # This is the mock for instances of ARCTester
@@ -68,7 +61,7 @@ async def test_retry_and_eventual_success(caplog): # Only pytest fixtures like c
             num_failures_to_simulate = 2
             simulator = APICallSimulator(
                 fail_n_times=num_failures_to_simulate,
-                exception_to_raise=TestRetryableExceptionInTestScope
+                exception_to_raise=_TestRetryableExceptionInTestScope
             )
             mock_arc_instance.generate_task_solution.side_effect = simulator.simulate_generate_task_solution
 
@@ -107,7 +100,8 @@ async def test_retry_and_eventual_success(caplog): # Only pytest fixtures like c
 
 # --- Add new test cases below --- #
 
-class NonRetryableTestException(ValueError): # Inherit from something specific, not just Exception
+# Renamed to start with an underscore
+class _NonRetryableTestException(ValueError):
     """A simple non-retryable exception for testing."""
     pass
 
@@ -123,14 +117,14 @@ async def test_failure_after_all_retries(caplog):
     task_id = "test_task_002"
     max_attempts_by_tenacity = 4 # From stop_after_attempt(4) in cli/run_all.py
 
-    with patch('cli.run_all.EFFECTIVE_RETRYABLE_EXCEPTIONS', (TestRetryableExceptionInTestScope,)):
+    with patch('cli.run_all.EFFECTIVE_RETRYABLE_EXCEPTIONS', (_TestRetryableExceptionInTestScope,)):
         with patch('cli.run_all.ARCTester') as MockARCTesterClass:
             mock_arc_instance = MockARCTesterClass.return_value
             
             # Simulate failure for all attempts + 1 (to be sure it always fails)
             simulator = APICallSimulator(
                 fail_n_times=max_attempts_by_tenacity + 1, 
-                exception_to_raise=TestRetryableExceptionInTestScope
+                exception_to_raise=_TestRetryableExceptionInTestScope
             )
             mock_arc_instance.generate_task_solution.side_effect = simulator.simulate_generate_task_solution
 
@@ -164,13 +158,13 @@ async def test_non_retryable_exception(caplog):
 
     # Patch EFFECTIVE_RETRYABLE_EXCEPTIONS to ONLY retry on TestRetryableExceptionInTestScope.
     # So, NonRetryableTestException should not be retried.
-    with patch('cli.run_all.EFFECTIVE_RETRYABLE_EXCEPTIONS', (TestRetryableExceptionInTestScope,)):
+    with patch('cli.run_all.EFFECTIVE_RETRYABLE_EXCEPTIONS', (_TestRetryableExceptionInTestScope,)):
         with patch('cli.run_all.ARCTester') as MockARCTesterClass:
             mock_arc_instance = MockARCTesterClass.return_value
             
             simulator = APICallSimulator(
                 fail_n_times=1, # Will fail on the first call
-                exception_to_raise=NonRetryableTestException # This exception is not in the patched config
+                exception_to_raise=_NonRetryableTestException # This exception is not in the patched config
             )
             mock_arc_instance.generate_task_solution.side_effect = simulator.simulate_generate_task_solution
 
