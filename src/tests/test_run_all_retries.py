@@ -68,7 +68,17 @@ async def test_retry_and_eventual_success(caplog): # Only pytest fixtures like c
             limiter = AsyncRequestRateLimiter(rate=1000, capacity=1000)
 
             # Execute the function under test
-            result = await run_single_test_wrapper(config_name, task_id, limiter)
+            result = await run_single_test_wrapper(
+                config_name, 
+                task_id, 
+                limiter,
+                data_dir="data/arc-agi/data/evaluation", # DEFAULT_DATA_DIR
+                save_submission_dir_base="submissions_test_retries", # Custom for test
+                overwrite_submission=True, # DEFAULT_OVERWRITE_SUBMISSION is False, but True for test clarity
+                print_submission=False, # DEFAULT_PRINT_SUBMISSION
+                num_attempts=1, # DEFAULT_NUM_ATTEMPTS is 2, using 1 for faster test
+                retry_attempts=1  # DEFAULT_RETRY_ATTEMPTS is 2, using 1 for faster test
+            )
 
             # Assertions
             assert result is True, "Wrapper should return True on eventual success."
@@ -129,7 +139,17 @@ async def test_failure_after_all_retries(caplog):
             mock_arc_instance.generate_task_solution.side_effect = simulator.simulate_generate_task_solution
 
             limiter = AsyncRequestRateLimiter(rate=1000, capacity=1000)
-            result = await run_single_test_wrapper(config_name, task_id, limiter)
+            result = await run_single_test_wrapper(
+                config_name, 
+                task_id, 
+                limiter,
+                data_dir="data/arc-agi/data/evaluation",
+                save_submission_dir_base="submissions_test_retries",
+                overwrite_submission=True,
+                print_submission=False,
+                num_attempts=1,
+                retry_attempts=1
+            )
 
             assert result is False, "Wrapper should return False when all retries are exhausted."
             
@@ -169,7 +189,17 @@ async def test_non_retryable_exception(caplog):
             mock_arc_instance.generate_task_solution.side_effect = simulator.simulate_generate_task_solution
 
             limiter = AsyncRequestRateLimiter(rate=1000, capacity=1000)
-            result = await run_single_test_wrapper(config_name, task_id, limiter)
+            result = await run_single_test_wrapper(
+                config_name, 
+                task_id, 
+                limiter,
+                data_dir="data/arc-agi/data/evaluation",
+                save_submission_dir_base="submissions_test_retries",
+                overwrite_submission=True,
+                print_submission=False,
+                num_attempts=1,
+                retry_attempts=1
+            )
 
             assert result is False, "Wrapper should return False on non-retryable exception."
             

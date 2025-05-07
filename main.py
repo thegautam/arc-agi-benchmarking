@@ -159,8 +159,7 @@ class ARCTester:
         if task_attempts:
             if self.print_submission:
                 # Log the submission content; use json.dumps for potentially large structures
-                logger.info(f"Final submission for task {task_id}, ModelConfig {test_id}:
-{json.dumps(task_attempts, indent=4)}")
+                logger.info(f"Final submission for task {task_id}, ModelConfig {test_id}:\n{json.dumps(task_attempts, indent=4)}")
 
             if self.save_submission_dir:
                 utils.save_submission(self.save_submission_dir, task_id, task_attempts)
