@@ -70,13 +70,6 @@ providers = [
     "uritemplate==4.1.1"
 ]
 
-analysis = [
-    "pandas",
-    "numpy",
-    "cleanplots",
-]
-
-
 
 [project.urls]
 Home = "https://github.com/arcprize/model_baseline"
