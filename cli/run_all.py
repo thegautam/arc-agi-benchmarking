@@ -66,7 +66,7 @@ DEFAULT_MODEL_CONFIGS_TO_TEST: List[str] = [
 
 # Default parameters for ARCTester - these can remain as they were
 DEFAULT_DATA_DIR = "data/arc-agi/data/evaluation"
-DEFAULT_SAVE_SUBMISSION_DIR_BASE = "submissions_run_all" # Base dir for submissions
+DEFAULT_SUBMISSIONS_ROOT = "submissions" # Changed from DEFAULT_SAVE_SUBMISSION_DIR_BASE
 DEFAULT_OVERWRITE_SUBMISSION = False
 DEFAULT_PRINT_SUBMISSION = False # ARCTester specific: whether it logs submission content
 DEFAULT_NUM_ATTEMPTS = 2
@@ -107,12 +107,13 @@ def get_or_create_rate_limiter(provider_name: str, all_provider_limits: Dict) ->
     return PROVIDER_RATE_LIMITERS[provider_name]
 
 async def run_single_test_wrapper(config_name: str, task_id: str, limiter: AsyncRequestRateLimiter,
-                                  data_dir: str, save_submission_dir_base: str,
+                                  data_dir: str, submissions_root: str, # Changed from save_submission_dir_base
                                   overwrite_submission: bool, print_submission: bool,
                                   num_attempts: int, retry_attempts: int) -> bool: # removed print_logs
     # Using the module-level logger defined earlier
     logger.info(f"[Orchestrator] Queuing task: {task_id}, config: {config_name}")
-    save_submission_dir_for_config = os.path.join(save_submission_dir_base, config_name)
+    # Construct path like submissions/<config_name>
+    save_submission_dir_for_config = os.path.join(submissions_root, config_name)
 
     # Apply tenacity retry decorator directly to the synchronous function
     # The logger passed to before_sleep_log is the module-level logger of cli.run_all
@@ -152,7 +153,7 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
         return False
 
 async def main(task_list_file: str, model_configs_to_test: List[str],
-               data_dir: str, save_submission_dir_base: str,
+               data_dir: str, submissions_root: str, # Changed from save_submission_dir_base
                overwrite_submission: bool, print_submission: bool, # print_submission is for ARCTester
                num_attempts: int, retry_attempts: int):
     # Basic logging setup is now done in if __name__ == "__main__"
@@ -203,7 +204,7 @@ async def main(task_list_file: str, model_configs_to_test: List[str],
             limiter = get_or_create_rate_limiter(provider_name, all_provider_limits)
             async_tasks_to_execute.append(run_single_test_wrapper(
                 config_name, task_id, limiter,
-                data_dir, save_submission_dir_base,
+                data_dir, submissions_root, # Changed from save_submission_dir_base
                 overwrite_submission, print_submission, 
                 num_attempts, retry_attempts
             ))
@@ -268,10 +269,10 @@ if __name__ == "__main__":
         help=f"Data set directory to run. Defaults to {DEFAULT_DATA_DIR}"
     )
     parser.add_argument(
-        "--save_submission_dir_base",
+        "--submissions-root", # Renamed from --save_submission_dir_base
         type=str,
-        default=DEFAULT_SAVE_SUBMISSION_DIR_BASE,
-        help=f"Base folder name to save submissions under. Subfolders per config will be created. Defaults to {DEFAULT_SAVE_SUBMISSION_DIR_BASE}"
+        default=DEFAULT_SUBMISSIONS_ROOT,
+        help=f"Root folder name to save submissions under. Subfolders per config will be created. Defaults to {DEFAULT_SUBMISSIONS_ROOT}"
     )
     parser.add_argument(
         "--overwrite_submission",
@@ -326,7 +327,7 @@ if __name__ == "__main__":
         task_list_file=args.task_list_file,
         model_configs_to_test=model_configs_list,
         data_dir=args.data_dir,
-        save_submission_dir_base=args.save_submission_dir_base,
+        submissions_root=args.submissions_root, # Changed from save_submission_dir_base
         overwrite_submission=args.overwrite_submission,
         print_submission=args.print_submission, # Passed to ARCTester
         num_attempts=args.num_attempts,
