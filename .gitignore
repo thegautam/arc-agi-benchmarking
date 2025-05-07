@@ -173,6 +173,7 @@ models_private.yml
 
 # ignore local files
 *_local.sh
+submissions_*/*
 metrics_output/*
 submissions_run_all/*
 benchmarking.md
