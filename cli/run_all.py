@@ -79,7 +79,7 @@ DEFAULT_OVERWRITE_SUBMISSION = False
 DEFAULT_PRINT_SUBMISSION = False
 DEFAULT_NUM_ATTEMPTS = 2
 DEFAULT_RETRY_ATTEMPTS = 2
-DEFAULT_PRINT_LOGS = True
+DEFAULT_PRINT_LOGS = False
 
 # --- Globals for Orchestrator ---
 PROVIDER_RATE_LIMITERS: Dict[str, AsyncRequestRateLimiter] = {}
@@ -115,10 +115,13 @@ def get_or_create_rate_limiter(provider_name: str, all_provider_limits: Dict) ->
         PROVIDER_RATE_LIMITERS[provider_name] = AsyncRequestRateLimiter(rate=actual_rate_for_limiter, capacity=actual_capacity_for_limiter)
     return PROVIDER_RATE_LIMITERS[provider_name]
 
-async def run_single_test_wrapper(config_name: str, task_id: str, limiter: AsyncRequestRateLimiter) -> bool:
+async def run_single_test_wrapper(config_name: str, task_id: str, limiter: AsyncRequestRateLimiter,
+                                  data_dir: str, save_submission_dir_base: str,
+                                  overwrite_submission: bool, print_submission: bool,
+                                  num_attempts: int, retry_attempts: int, print_logs: bool) -> bool:
     logger = logging.getLogger(__name__) # Get a logger instance
     print(f"[Orchestrator] 🔄 Queuing task: {task_id}, config: {config_name}")
-    save_submission_dir_for_config = os.path.join(DEFAULT_SAVE_SUBMISSION_DIR_BASE, config_name)
+    save_submission_dir_for_config = os.path.join(save_submission_dir_base, config_name)
 
     # Apply tenacity retry decorator directly to the synchronous function
     @retry(
@@ -132,15 +135,15 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
         arc_solver = ARCTester(
             config=config_name,
             save_submission_dir=save_submission_dir_for_config,
-            overwrite_submission=DEFAULT_OVERWRITE_SUBMISSION,
-            print_submission=DEFAULT_PRINT_SUBMISSION,
-            num_attempts=DEFAULT_NUM_ATTEMPTS,
-            retry_attempts=DEFAULT_RETRY_ATTEMPTS, # This is ARCTester's internal retries, distinct from tenacity
-            print_logs=DEFAULT_PRINT_LOGS
+            overwrite_submission=overwrite_submission,
+            print_submission=print_submission,
+            num_attempts=num_attempts,
+            retry_attempts=retry_attempts, # This is ARCTester's internal retries, distinct from tenacity
+            print_logs=print_logs
         )
         print(f"[Thread-{task_id}-{config_name}] Starting generate_task_solution...")
         arc_solver.generate_task_solution(
-            data_dir=DEFAULT_DATA_DIR,
+            data_dir=data_dir,
             task_id=task_id
         )
         print(f"[Thread-{task_id}-{config_name}] ✅ Task attempt completed successfully.")
@@ -160,7 +163,10 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
         logger.error(f"[Orchestrator] ❌ Failed to process (after all tenacity retries or due to non-retryable error): {config_name} / {task_id}. Error: {type(e).__name__} - {e}", exc_info=True)
         return False
 
-async def main(task_list_file: str):
+async def main(task_list_file: str, model_configs_to_test: List[str],
+               data_dir: str, save_submission_dir_base: str,
+               overwrite_submission: bool, print_submission: bool,
+               num_attempts: int, retry_attempts: int, print_logs: bool):
     # Basic logging setup - consider moving to a dedicated logging config function
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     logger = logging.getLogger(__name__) # Ensure main logger also uses this config.
@@ -168,7 +174,7 @@ async def main(task_list_file: str):
     start_time = time.perf_counter()
     print(f"Starting ARC Test Orchestrator...")
     print(f"Using task list: {task_list_file}")
-    print(f"Testing with model configurations: {MODEL_CONFIGS_TO_TEST}")
+    print(f"Testing with model configurations: {model_configs_to_test}")
 
     # 1. Load task IDs from the file
     task_ids: List[str] = []
@@ -185,12 +191,12 @@ async def main(task_list_file: str):
 
     # 2. Generate all (config_name, task_id) pairs
     all_jobs_to_run: List[Tuple[str, str]] = []
-    for config_name in MODEL_CONFIGS_TO_TEST:
+    for config_name in model_configs_to_test:
         for task_id in task_ids:
             all_jobs_to_run.append((config_name, task_id))
     
     if not all_jobs_to_run:
-        print("No jobs to run (check MODEL_CONFIGS_TO_TEST and task list file). Exiting.")
+        print("No jobs to run (check model_configs_to_test and task list file). Exiting.")
         return
     
     print(f"Total jobs to process: {len(all_jobs_to_run)}")
@@ -213,7 +219,12 @@ async def main(task_list_file: str):
             model_config_obj = get_model_config(config_name) # Renamed for clarity
             provider_name = model_config_obj.provider
             limiter = get_or_create_rate_limiter(provider_name, all_provider_limits)
-            async_tasks_to_execute.append(run_single_test_wrapper(config_name, task_id, limiter))
+            async_tasks_to_execute.append(run_single_test_wrapper(
+                config_name, task_id, limiter,
+                data_dir, save_submission_dir_base,
+                overwrite_submission, print_submission,
+                num_attempts, retry_attempts, print_logs
+            ))
         except ValueError as e:
             print(f"Skipping config '{config_name}' for task '{task_id}' due to model config error: {e}")
         except Exception as e:
@@ -278,6 +289,71 @@ if __name__ == "__main__":
         default="data/task_lists/public_evaluation_v1.txt", 
         help="Path to the .txt file containing task IDs, one per line. Defaults to data/task_lists/public_evaluation_v1.txt"
     )
+    parser.add_argument(
+        "--model_configs",
+        type=str,
+        default=",".join(MODEL_CONFIGS_TO_TEST),
+        help="Comma-separated list of model configuration names to test (from models.yml). Defaults to pre-defined list."
+    )
+    parser.add_argument(
+        "--data_dir",
+        type=str,
+        default=DEFAULT_DATA_DIR,
+        help=f"Data set directory to run. Defaults to {DEFAULT_DATA_DIR}"
+    )
+    parser.add_argument(
+        "--save_submission_dir_base",
+        type=str,
+        default=DEFAULT_SAVE_SUBMISSION_DIR_BASE,
+        help=f"Base folder name to save submissions under. Subfolders per config will be created. Defaults to {DEFAULT_SAVE_SUBMISSION_DIR_BASE}"
+    )
+    parser.add_argument(
+        "--overwrite_submission",
+        action="store_true",
+        default=DEFAULT_OVERWRITE_SUBMISSION,
+        help=f"Overwrite submissions if they already exist. Defaults to {DEFAULT_OVERWRITE_SUBMISSION}"
+    )
+    parser.add_argument(
+        "--print_submission",
+        action="store_true",
+        default=DEFAULT_PRINT_SUBMISSION,
+        help=f"Print submissions to console after each task. Defaults to {DEFAULT_PRINT_SUBMISSION}"
+    )
+    parser.add_argument(
+        "--num_attempts",
+        type=int,
+        default=DEFAULT_NUM_ATTEMPTS,
+        help=f"Number of attempts for each prediction by ARCTester. Defaults to {DEFAULT_NUM_ATTEMPTS}"
+    )
+    parser.add_argument(
+        "--retry_attempts",
+        type=int,
+        default=DEFAULT_RETRY_ATTEMPTS,
+        help=f"Number of internal retry attempts by ARCTester for failed predictions. Defaults to {DEFAULT_RETRY_ATTEMPTS}"
+    )
+    parser.add_argument(
+        "--print_logs",
+        action="store_true",
+        default=DEFAULT_PRINT_LOGS, 
+        help=f"Enable ARCTester's per-step logging. Defaults to {DEFAULT_PRINT_LOGS}"
+    )
+
     args = parser.parse_args()
 
-    asyncio.run(main(task_list_file=args.task_list_file)) 
+    # Post-process model_configs from comma-separated string to list
+    model_configs_list = [m.strip() for m in args.model_configs.split(',') if m.strip()]
+    if not model_configs_list: # Fallback if parsing results in empty (e.g. only commas/whitespace)
+        model_configs_list = MODEL_CONFIGS_TO_TEST
+
+
+    asyncio.run(main(
+        task_list_file=args.task_list_file,
+        model_configs_to_test=model_configs_list,
+        data_dir=args.data_dir,
+        save_submission_dir_base=args.save_submission_dir_base,
+        overwrite_submission=args.overwrite_submission,
+        print_submission=args.print_submission,
+        num_attempts=args.num_attempts,
+        retry_attempts=args.retry_attempts,
+        print_logs=args.print_logs
+    )) 
