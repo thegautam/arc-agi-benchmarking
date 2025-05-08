@@ -46,12 +46,13 @@ class ProviderAdapter(abc.ABC):
         """
         pass
 
-    @abc.abstractmethod
     def chat_completion(self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]] = []) -> Any:
         """
         Make a raw API call to the provider and return the response
         """
-        pass
+        # Base implementation can raise or be empty, subclasses should override if needed
+        # OpenAI-style adapters use _chat_completion internally.
+        raise NotImplementedError("Subclasses must implement chat_completion if used directly.")
 
     @abc.abstractmethod
     def extract_json_from_response(self, input_response: str) -> List[List[int]]:

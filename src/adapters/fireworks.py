@@ -34,18 +34,16 @@ class FireworksAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter
         """
         start_time = datetime.now(timezone.utc)
         
-        response = self.call_ai_model(prompt)
+        response = self._call_ai_model(prompt)
         
         end_time = datetime.now(timezone.utc)
 
-        input_cost_per_token = self.model_config.pricing.input / 1_000_000
-        output_cost_per_token = self.model_config.pricing.output / 1_000_000
-        
+        # Centralised cost calculation (includes sanity-check & calls _get_usage internally)
+        cost = self._calculate_cost(response)
+
+        # Retrieve usage *after* cost calculation, as cost calc might infer/update reasoning tokens
         usage = self._get_usage(response)
         
-        prompt_cost = usage.prompt_tokens * input_cost_per_token
-        completion_cost = usage.completion_tokens * output_cost_per_token
-
         input_choices = [
             Choice(
                 index=0,
@@ -73,11 +71,7 @@ class FireworksAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter
             choices=all_choices,
             kwargs=self.model_config.kwargs,
             usage=usage,
-            cost=Cost(
-                prompt_cost=prompt_cost,
-                completion_cost=completion_cost,
-                total_cost=prompt_cost + completion_cost
-            ),
+            cost=cost,
             task_id=task_id,
             pair_index=pair_index,
             test_id=test_id
@@ -106,7 +100,7 @@ Example of expected output format:
 IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting.
 """
         try:
-            completion = self.call_ai_model(prompt=prompt) 
+            completion = self._call_ai_model(prompt=prompt) 
             assistant_content = self._get_content(completion) 
         except Exception as e:
             print(f"Error during AI-based JSON extraction via Fireworks: {e}")
