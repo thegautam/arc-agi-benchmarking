@@ -118,7 +118,7 @@ Results from the scoring script are stored in the `results` folder. Performance 
 
 # Contributing
 
-This repo welcomes contributions! Specifically, we would love help adding more model adapters to the `src/adapters` folder.
+This repo welcomes contributions! Specifically, we would love help adding more model adapters to the `src/arc_agi_benchmarking/adapters` folder.
 
 For more information visit the [ARC Prize](https://arcprize.org/).
 
@@ -257,7 +257,7 @@ The `test_providers.sh` script includes examples of testing the same model with 
 
 ### 1. Configure Models in models.yml
 
-New models are defined in `src/models.yml`. Each model requires:
+New models are defined in `src/arc_agi_benchmarking/models.yml`. Each model requires:
 
 ```yaml
 models:
@@ -348,17 +348,17 @@ After running tests with different configurations, you can compare their perform
 
 ```bash
 # Score short response configuration
-python3 -m src.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/o1_short --print_logs --results_dir results/o1_short
+python3 -m src/arc_agi_benchmarking.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/o1_short --print_logs --results_dir results/o1_short
 
 # Score long response configuration
-python3 -m src.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/o1_long --print_logs --results_dir results/o1_long
+python3 -m src/arc_agi_benchmarking.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/o1_long --print_logs --results_dir results/o1_long
 ```
 
 This allows you to systematically evaluate how different parameter settings affect model performance on ARC-AGI tasks.
 
 ### 3. Create Provider Adapter
 
-1. Create a new file in `src/adapters/` (e.g., `my_provider.py`)
+1. Create a new file in `src/arc_agi_benchmarking/adapters/` (e.g., `my_provider.py`)
 2. Implement the `ProviderAdapter` class:
    ```python
    from .provider import ProviderAdapter

@@ -1,11 +1,11 @@
 import json
-from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter
+from arc_agi_benchmarking.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter
 from dotenv import load_dotenv
-import src.utils as utils
-from src.utils.metrics import timeit, set_metrics_enabled
-from src.schemas import ARCTaskOutput, ARCPair, Attempt
-from src.prompts.prompt_manager import convert_task_pairs_to_prompt
-from src.utils.parsing import parse_and_validate_json
+import arc_agi_benchmarking.utils as utils
+from arc_agi_benchmarking.utils.metrics import timeit, set_metrics_enabled
+from arc_agi_benchmarking.schemas import ARCTaskOutput, ARCPair, Attempt
+from arc_agi_benchmarking.prompts.prompt_manager import convert_task_pairs_to_prompt
+from arc_agi_benchmarking.utils.parsing import parse_and_validate_json
 from typing import List, Any, Optional
 import os
 import argparse
@@ -64,7 +64,7 @@ class ARCTester:
     def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int) -> Attempt:
         """
         Modified to return the full Attempt object instead of just the parsed answer
-        Uses the refactored parsing logic from src.parsing
+        Uses the refactored parsing logic from arc_agi_benchmarking.parsing
         """
         # Get the initial response as an Attempt object
         attempt: Attempt = self.predict_task_output(training_pairs, test_input, task_id, test_id, pair_index)
