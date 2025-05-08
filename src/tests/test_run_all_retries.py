@@ -46,7 +46,10 @@ async def test_retry_and_eventual_success(caplog): # Only pytest fixtures like c
     Tests that tenacity retries on OUR TestRetryableExceptionInTestScope and eventually succeeds,
     using patch as a context manager.
     """
-    caplog.set_level(logging.INFO)
+    # Ensure the relevant logger ('cli.run_all') captures WARNING messages
+    caplog.set_level(logging.WARNING, logger='cli.run_all') 
+    # Set overall capture level low if needed, but WARNING should be enough here.
+    # caplog.set_level(logging.DEBUG) 
 
     config_name = "test_config_retry_success"
     task_id = "test_task_001"
@@ -122,7 +125,10 @@ async def test_failure_after_all_retries(caplog):
     Tests that tenacity gives up after all configured attempts if the error persists.
     Assumes tenacity is configured for stop_after_attempt(4).
     """
-    caplog.set_level(logging.INFO)
+    # Ensure the relevant logger ('cli.run_all') captures WARNING messages
+    caplog.set_level(logging.WARNING, logger='cli.run_all')
+    # caplog.set_level(logging.DEBUG) 
+
     config_name = "test_config_persistent_failure"
     task_id = "test_task_002"
     max_attempts_by_tenacity = 4 # From stop_after_attempt(4) in cli/run_all.py

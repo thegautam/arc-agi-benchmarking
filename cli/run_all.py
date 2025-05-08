@@ -54,6 +54,10 @@ if not _RETRYABLE_EXCEPTIONS_CLASSES:
 else:
     EFFECTIVE_RETRYABLE_EXCEPTIONS = _RETRYABLE_EXCEPTIONS_CLASSES
 
+# Default values
+DEFAULT_RATE_LIMIT_RATE = 400
+DEFAULT_RATE_LIMIT_PERIOD = 60
+
 # --- Configuration ---
 # Default model configurations to test if not provided via CLI.
 # These are names from your models.yml file.
@@ -81,9 +85,9 @@ def get_model_config(config_name: str):
 def get_or_create_rate_limiter(provider_name: str, all_provider_limits: Dict) -> AsyncRequestRateLimiter:
     if provider_name not in PROVIDER_RATE_LIMITERS:
         if provider_name not in all_provider_limits:
-            logger.warning(f"No rate limit configuration found for provider '{provider_name}' in provider_config.yml. Using default (400 req/60s).")
-            default_config_rate = 400
-            default_config_period = 60
+            logger.warning(f"No rate limit configuration found for provider '{provider_name}' in provider_config.yml. Using default ({DEFAULT_RATE_LIMIT_RATE} req/{DEFAULT_RATE_LIMIT_PERIOD}s).")
+            default_config_rate = DEFAULT_RATE_LIMIT_RATE
+            default_config_period = DEFAULT_RATE_LIMIT_PERIOD
             actual_rate_for_limiter = default_config_rate / default_config_period
             actual_capacity_for_limiter = max(1.0, actual_rate_for_limiter)
         else:
@@ -240,7 +244,7 @@ async def main(task_list_file: str, model_configs_to_test: List[str],
     logger.info(f"--- Orchestrator Timing ---")
     logger.info(f"Total execution time for cli/run_all.py: {total_duration:.2f} seconds")
     
-    exit(exit_code)
+    return exit_code
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run ARC tasks concurrently using specified model configurations and a task list file.")
@@ -340,7 +344,7 @@ if __name__ == "__main__":
         model_configs_list = DEFAULT_MODEL_CONFIGS_TO_TEST
         logger.info(f"No model_configs provided or empty, using default: {model_configs_list}")
 
-    asyncio.run(main(
+    exit_code = asyncio.run(main(
         task_list_file=args.task_list_file,
         model_configs_to_test=model_configs_list,
         data_dir=args.data_dir,
@@ -349,4 +353,6 @@ if __name__ == "__main__":
         print_submission=args.print_submission, # Passed to ARCTester
         num_attempts=args.num_attempts,
         retry_attempts=args.retry_attempts
-    )) 
+    ))
+    
+    sys.exit(exit_code) # Exit with the code returned by main 

@@ -10,8 +10,16 @@ from src.utils import metrics
 
 @pytest.fixture(autouse=True)
 def reset_metrics_fixture():
-    """Automatically reset metrics before each test."""
+    """Automatically reset metrics and other relevant global state before each test."""
     metrics.reset_metrics()
+    # Also reset rate limiter cache from cli/run_all.py
+    try:
+        from cli import run_all
+        run_all.PROVIDER_RATE_LIMITERS.clear()
+        run_all.MODEL_CONFIG_CACHE.clear()
+        print("Cleared run_all caches.")
+    except ImportError:
+        print("Could not import or clear run_all caches.")
     # No yield needed, just run before
 
 @pytest.fixture
@@ -191,6 +199,23 @@ def test_reset_metrics():
 
     assert len(metrics.get_timing_data()) == 0
     assert len(metrics.get_counts()) == 0
+
+def test_metrics_disabled():
+    """Test that no metrics are collected when METRICS_ENABLED is False."""
+    # Ensure metrics are disabled (should be by default fixture, but double-check)
+    metrics.set_metrics_enabled(False)
+
+    # Call timed function and counter
+    result = _dummy_timed_function(delay=0.01)
+    assert result == "done" # Function should still run
+    metrics.increment_counter("disabled_event")
+
+    # Assert that no data was collected
+    timing_data = metrics.get_timing_data()
+    assert len(timing_data) == 0
+
+    counts = metrics.get_counts()
+    assert len(counts) == 0
 
 # Note: Testing the actual execution via atexit is complex and often skipped
 # in favor of directly testing the dump functions. 

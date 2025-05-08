@@ -93,11 +93,25 @@ class ARCTester:
     @timeit
     def generate_task_solution(self, data_dir, task_id):
         """
-        data_dir: str, the directory of the data set to run
-        task_id: str, the specific task to run. If None, run all tasks.
-        num_attempts: int the number of times to attempt a prediction. The official competition has 2 attempts.
-        retry_attempts: int the number of times to retry a prediction if it fails
-        save_submission: bool, whether to save the submission to a file after each task
+        Generates and saves the solution for a specific ARC task.
+
+        Args:
+            data_dir: The directory containing the ARC task data (e.g., 'data/arc-agi/data/evaluation').
+            task_id: The ID of the specific task to solve (e.g., '0a1d4ef5').
+
+        Instance attributes used:
+            self.config: The model configuration name being used.
+            self.num_attempts: The number of prediction attempts per test pair.
+            self.retry_attempts: The number of internal retries if a prediction attempt fails.
+            self.save_submission_dir: Directory to save the final submission JSON.
+            self.overwrite_submission: Whether to overwrite existing submission files.
+            self.print_submission: Whether to log the final submission JSON content.
+            self.provider: The initialized provider adapter.
+
+        Returns:
+            A list representing the submission structure if successful and saving is enabled,
+            or None if no valid predictions were made or saving is disabled but run completes.
+            Returns None immediately if submission exists and overwrite is False.
         """
         
         logger.info(f"Running task {task_id} with config {self.config}")
@@ -194,9 +208,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--log-level", 
         type=str, 
-        default="WARNING", 
+        default="INFO", 
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
-        help="Set the logging level (default: WARNING)"
+        help="Set the logging level (default: INFO)"
     )
     args = parser.parse_args()
 
