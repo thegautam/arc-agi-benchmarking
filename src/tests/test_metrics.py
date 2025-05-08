@@ -38,6 +38,7 @@ def _dummy_timed_function_error():
 
 def test_timeit_decorator():
     """Test that the @timeit decorator records function execution."""
+    metrics.set_metrics_enabled(True)
     result = _dummy_timed_function(delay=0.02)
     assert result == "done"
 
@@ -63,6 +64,7 @@ def test_timeit_decorator():
 
 def test_timeit_decorator_exception():
     """Test that @timeit still records timing info if the function errors."""
+    metrics.set_metrics_enabled(True)
     with pytest.raises(ValueError, match="Something went wrong"):
         _dummy_timed_function_error()
 
@@ -75,6 +77,7 @@ def test_timeit_decorator_exception():
 
 def test_increment_counter():
     """Test the increment_counter function."""
+    metrics.set_metrics_enabled(True)
     metrics.increment_counter("test_event_1")
     metrics.increment_counter("test_event_1")
     metrics.increment_counter("test_event_2", value=5)
@@ -86,6 +89,7 @@ def test_increment_counter():
 
 def test_get_timing_data_returns_copy():
     """Test that get_timing_data returns a copy, not the internal list."""
+    metrics.set_metrics_enabled(True)
     _dummy_timed_function(delay=0.001)
     data1 = metrics.get_timing_data()
     assert len(data1) == 1
@@ -97,6 +101,7 @@ def test_get_timing_data_returns_copy():
 
 def test_get_counts_returns_copy():
     """Test that get_counts returns a copy, not the internal Counter."""
+    metrics.set_metrics_enabled(True)
     metrics.increment_counter("event_a")
     counts1 = metrics.get_counts()
     assert len(counts1) == 1
@@ -109,6 +114,7 @@ def test_get_counts_returns_copy():
 
 def test_dump_timing(set_metrics_output_dir):
     """Test dumping timing data to a CSV file."""
+    metrics.set_metrics_enabled(True)
     _dummy_timed_function(delay=0.01)
     _dummy_timed_function(delay=0.02)
 
@@ -131,6 +137,7 @@ def test_dump_timing(set_metrics_output_dir):
 
 def test_dump_counts(set_metrics_output_dir):
     """Test dumping count data to a JSON file."""
+    metrics.set_metrics_enabled(True)
     metrics.increment_counter("apple", 3)
     metrics.increment_counter("banana", 1)
 
@@ -149,6 +156,7 @@ def test_dump_counts(set_metrics_output_dir):
 
 def test_dump_no_timing_data(set_metrics_output_dir, capsys):
     """Test dumping when no timing data has been collected."""
+    metrics.set_metrics_enabled(True)
     output_dir = set_metrics_output_dir
     expected_file = output_dir / "metrics_timing.csv"
 
@@ -160,6 +168,7 @@ def test_dump_no_timing_data(set_metrics_output_dir, capsys):
 
 def test_dump_no_count_data(set_metrics_output_dir, capsys):
     """Test dumping when no count data has been collected."""
+    metrics.set_metrics_enabled(True)
     output_dir = set_metrics_output_dir
     expected_file = output_dir / "metrics_counts.json"
 
@@ -171,6 +180,7 @@ def test_dump_no_count_data(set_metrics_output_dir, capsys):
 
 def test_reset_metrics():
     """Test the reset_metrics function."""
+    metrics.set_metrics_enabled(True)
     _dummy_timed_function(delay=0.001)
     metrics.increment_counter("some_event")
 
