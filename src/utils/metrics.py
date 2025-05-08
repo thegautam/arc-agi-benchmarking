@@ -6,11 +6,13 @@ import csv
 import os
 from pathlib import Path
 from typing import List, Dict, Any, Callable
+import datetime # Added for timestamp
 
 # --- Global Storage & Control ---
 _timing_data: List[Dict[str, Any]] = []
 _output_dir = Path(os.environ.get("METRICS_OUTPUT_DIR", "metrics_output"))
 METRICS_ENABLED = False  # Metrics are disabled by default
+_filename_prefix = "" # Added global for dynamic filename prefix
 
 
 def set_metrics_enabled(enabled: bool):
@@ -60,7 +62,8 @@ def dump_timing(filepath: str = "metrics_timing.csv"):
         print("No timing data collected.")
         return
 
-    output_path = _output_dir / filepath
+    # Filepath is now expected to be the full path constructed by _dump_all
+    output_path = Path(filepath) # Use the provided full path
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Check if _timing_data is not empty before accessing keys
@@ -82,9 +85,26 @@ def _dump_all():
     """Function called by atexit to dump timing metrics, if METRICS_ENABLED is True."""
     if not METRICS_ENABLED:
         return
-    dump_timing()
+    
+    # Construct filename using prefix if set, otherwise use default
+    timestamp_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")
+    if _filename_prefix:
+        # Ensure prefix is filesystem-safe (basic example, might need more robust cleaning)
+        safe_prefix = "".join(c for c in _filename_prefix if c.isalnum() or c in ('_', '-')).rstrip()
+        filename = f"{safe_prefix}_{timestamp_str}_timing.csv"
+    else:
+        filename = f"{timestamp_str}_default_timing.csv"
+        
+    full_filepath = _output_dir / filename
+    dump_timing(filepath=str(full_filepath)) # Pass the constructed full path
 
 atexit.register(_dump_all)
+
+# --- Setter for Filename Prefix ---
+def set_metrics_filename_prefix(prefix: str):
+    """Set a prefix for the automatically generated metrics filename."""
+    global _filename_prefix
+    _filename_prefix = prefix
 
 # --- Optional: Resetting (useful for testing) ---
 def reset_metrics():

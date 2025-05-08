@@ -16,7 +16,7 @@ if project_root not in sys.path:
 from main import ARCTester
 from src.utils.task_utils import read_models_config, read_provider_rate_limits
 from src.utils.rate_limiter import AsyncRequestRateLimiter
-from src.utils.metrics import set_metrics_enabled
+from src.utils.metrics import set_metrics_enabled, set_metrics_filename_prefix
 
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, before_sleep_log
 
@@ -342,6 +342,24 @@ if __name__ == "__main__":
     if not model_configs_list: 
         model_configs_list = DEFAULT_MODEL_CONFIGS_TO_TEST
         logger.info(f"No model_configs provided or empty, using default: {model_configs_list}")
+
+    # --- Set metrics filename prefix based on the model config(s) being run --- 
+    if args.enable_metrics:
+        # If running only one config, include it directly.
+        # If multiple, use a generic indicator or hash (using first for simplicity here).
+        config_identifier = model_configs_list[0] if len(model_configs_list) == 1 else f"{len(model_configs_list)}_configs"
+        # Attempt to get provider from the first config (assumes homogeneity if multiple)
+        provider_name = "unknown_provider"
+        try:
+            first_config_obj = get_model_config(model_configs_list[0])
+            provider_name = first_config_obj.provider
+        except Exception: 
+            logger.warning(f"Could not determine provider for metrics filename from config: {model_configs_list[0]}")
+        
+        prefix = f"{provider_name}_{config_identifier}"
+        set_metrics_filename_prefix(prefix)
+        logger.info(f"Metrics enabled. Filename prefix set to: {prefix}")
+    # ----------------------------------------------------------------------------
 
     exit_code = asyncio.run(main(
         task_list_file=args.task_list_file,
