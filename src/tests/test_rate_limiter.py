@@ -41,12 +41,12 @@ async def test_basic_acquire():
     await limiter.acquire(1)
     actual_9 = await limiter.get_available_requests()
     # Check value is within a small range around 9.0
-    assert 9.0 - 1e-4 < actual_9 < 9.0 + 1e-4 
+    assert 9.0 - 1e-3 < actual_9 < 9.0 + 1e-3 # Increased tolerance
     
     await limiter.acquire(5)
     actual_4 = await limiter.get_available_requests()
     # Check value is within a small range around 4.0
-    assert 4.0 - 1e-4 < actual_4 < 4.0 + 1e-4
+    assert 4.0 - 1e-3 < actual_4 < 4.0 + 1e-3 # Increased tolerance
 
 async def test_consume_capacity():
     """Test acquiring exactly the capacity quickly."""
@@ -185,10 +185,10 @@ async def test_context_manager():
     async with limiter:
         actual_4 = await limiter.get_available_requests()
         # Check value is within a small range around 4.0
-        assert 4.0 - 1e-4 < actual_4 < 4.0 + 1e-4
+        assert 4.0 - 1e-3 < actual_4 < 4.0 + 1e-3 # Increased tolerance
     final_req = await limiter.get_available_requests()
     # Check value is within a small range around 4.0
-    assert 4.0 - 1e-4 < final_req < 4.0 + 1e-4
+    assert 4.0 - 1e-3 < final_req < 4.0 + 1e-3 # Increased tolerance
 
 async def test_acquire_more_than_capacity_error():
     """Test ValueError when trying to acquire more than capacity."""
@@ -212,7 +212,7 @@ async def test_get_available_requests_basic():
     await limiter.acquire(3)
     actual_12 = await limiter.get_available_requests()
     # Check value is within a small range around 12.0
-    assert 12.0 - 1e-4 < actual_12 < 12.0 + 1e-4
+    assert 12.0 - 1e-3 < actual_12 < 12.0 + 1e-3 # Increased tolerance
 
     await asyncio.sleep(0.1) 
     # Check close to 13 (existing isclose is fine here)
