@@ -54,29 +54,35 @@ def get_timing_data() -> List[Dict[str, Any]]:
     """Returns a copy of the collected timing data."""
     return list(_timing_data)
 
-def dump_timing(filepath: str = "metrics_timing.csv"):
-    """Saves the collected timing data to a CSV file, if METRICS_ENABLED is True."""
+def dump_timing(filename: str = "metrics_timing.csv"):
+    """Saves the collected timing data to a CSV file in the configured output directory, if METRICS_ENABLED is True."""
     if not METRICS_ENABLED:
         return
     if not _timing_data:
         print("No timing data collected.")
         return
 
-    # Filepath is now expected to be the full path constructed by _dump_all
-    output_path = Path(filepath) # Use the provided full path
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    # Ensure the main output directory exists
+    try:
+        _output_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Error creating metrics directory {_output_dir.resolve()}: {e}")
+        return # Cannot proceed if directory can't be created
+
+    output_path = _output_dir / filename # Construct full path using _output_dir and filename
 
     # Check if _timing_data is not empty before accessing keys
     if not _timing_data:
         print("Internal state error: _timing_data became empty before processing.")
-        return 
-        
-    fieldnames = _timing_data[0].keys()
+        return
+
+    fieldnames = list(_timing_data[0].keys()) # Ensure it's a list
     try:
         with open(output_path, 'w', newline='') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(_timing_data)
+        # print(f"Timing metrics saved to {output_path.resolve()}") # Optional: for debugging
     except Exception as e:
         print(f"Error saving timing metrics to {output_path.resolve()}: {e}")
 
@@ -86,17 +92,17 @@ def _dump_all():
     if not METRICS_ENABLED:
         return
     
-    # Construct filename using prefix if set, otherwise use default
     timestamp_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")
+    base_filename_suffix = "_timing.csv" # Define a common suffix
+
     if _filename_prefix:
         # Ensure prefix is filesystem-safe (basic example, might need more robust cleaning)
         safe_prefix = "".join(c for c in _filename_prefix if c.isalnum() or c in ('_', '-')).rstrip()
-        filename = f"{safe_prefix}_{timestamp_str}_timing.csv"
+        filename_for_atexit = f"{safe_prefix}_{timestamp_str}{base_filename_suffix}"
     else:
-        filename = f"{timestamp_str}_default_timing.csv"
+        filename_for_atexit = f"{timestamp_str}_default{base_filename_suffix}"
         
-    full_filepath = _output_dir / filename
-    dump_timing(filepath=str(full_filepath)) # Pass the constructed full path
+    dump_timing(filename=filename_for_atexit) # Pass only the filename
 
 atexit.register(_dump_all)
 
