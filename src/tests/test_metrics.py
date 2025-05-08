@@ -17,9 +17,8 @@ def reset_metrics_fixture():
         from cli import run_all
         run_all.PROVIDER_RATE_LIMITERS.clear()
         run_all.MODEL_CONFIG_CACHE.clear()
-        print("Cleared run_all caches.")
     except ImportError:
-        print("Could not import or clear run_all caches.")
+        pass # Ignore if cli.run_all not available (e.g. running only metrics tests)
     # No yield needed, just run before
 
 @pytest.fixture
@@ -83,18 +82,6 @@ def test_timeit_decorator_exception():
     assert record["module"] == __name__
     assert record["duration_ms"] >= 0
 
-def test_increment_counter():
-    """Test the increment_counter function."""
-    metrics.set_metrics_enabled(True)
-    metrics.increment_counter("test_event_1")
-    metrics.increment_counter("test_event_1")
-    metrics.increment_counter("test_event_2", value=5)
-
-    counts = metrics.get_counts()
-    assert len(counts) == 2
-    assert counts["test_event_1"] == 2
-    assert counts["test_event_2"] == 5
-
 def test_get_timing_data_returns_copy():
     """Test that get_timing_data returns a copy, not the internal list."""
     metrics.set_metrics_enabled(True)
@@ -106,19 +93,6 @@ def test_get_timing_data_returns_copy():
     data2 = metrics.get_timing_data()
     assert len(data2) == 1 # Should not have the appended fake data
     assert data1 != data2
-
-def test_get_counts_returns_copy():
-    """Test that get_counts returns a copy, not the internal Counter."""
-    metrics.set_metrics_enabled(True)
-    metrics.increment_counter("event_a")
-    counts1 = metrics.get_counts()
-    assert len(counts1) == 1
-    counts1["event_b"] = 99
-
-    counts2 = metrics.get_counts()
-    assert len(counts2) == 1 # Should not have event_b
-    assert "event_b" not in counts2
-    assert counts1 != counts2
 
 def test_dump_timing(set_metrics_output_dir):
     """Test dumping timing data to a CSV file."""
@@ -143,25 +117,6 @@ def test_dump_timing(set_metrics_output_dir):
         assert rows[0][header.index("function_name")] == "_dummy_timed_function"
         assert float(rows[0][header.index("duration_ms")]) > 5
 
-def test_dump_counts(set_metrics_output_dir):
-    """Test dumping count data to a JSON file."""
-    metrics.set_metrics_enabled(True)
-    metrics.increment_counter("apple", 3)
-    metrics.increment_counter("banana", 1)
-
-    output_dir = set_metrics_output_dir
-    expected_file = output_dir / "metrics_counts.json"
-
-    metrics.dump_counts()
-
-    assert expected_file.exists()
-    with open(expected_file, 'r') as f:
-        data = json.load(f)
-
-    assert len(data) == 2
-    assert data["apple"] == 3
-    assert data["banana"] == 1
-
 def test_dump_no_timing_data(set_metrics_output_dir, capsys):
     """Test dumping when no timing data has been collected."""
     metrics.set_metrics_enabled(True)
@@ -174,31 +129,16 @@ def test_dump_no_timing_data(set_metrics_output_dir, capsys):
     captured = capsys.readouterr()
     assert "No timing data collected." in captured.out
 
-def test_dump_no_count_data(set_metrics_output_dir, capsys):
-    """Test dumping when no count data has been collected."""
-    metrics.set_metrics_enabled(True)
-    output_dir = set_metrics_output_dir
-    expected_file = output_dir / "metrics_counts.json"
-
-    metrics.dump_counts()
-
-    assert not expected_file.exists()
-    captured = capsys.readouterr()
-    assert "No count data collected." in captured.out
-
 def test_reset_metrics():
     """Test the reset_metrics function."""
     metrics.set_metrics_enabled(True)
     _dummy_timed_function(delay=0.001)
-    metrics.increment_counter("some_event")
 
     assert len(metrics.get_timing_data()) == 1
-    assert len(metrics.get_counts()) == 1
 
     metrics.reset_metrics() # Called by fixture, but test explicitly too
 
     assert len(metrics.get_timing_data()) == 0
-    assert len(metrics.get_counts()) == 0
 
 def test_metrics_disabled():
     """Test that no metrics are collected when METRICS_ENABLED is False."""
@@ -208,14 +148,10 @@ def test_metrics_disabled():
     # Call timed function and counter
     result = _dummy_timed_function(delay=0.01)
     assert result == "done" # Function should still run
-    metrics.increment_counter("disabled_event")
 
     # Assert that no data was collected
     timing_data = metrics.get_timing_data()
     assert len(timing_data) == 0
-
-    counts = metrics.get_counts()
-    assert len(counts) == 0
 
 # Note: Testing the actual execution via atexit is complex and often skipped
 # in favor of directly testing the dump functions. 

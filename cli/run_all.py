@@ -330,7 +330,6 @@ if __name__ == "__main__":
         # Optionally, disable existing handlers if libraries might add their own via basicConfig
         # logging.getLogger().handlers.clear() # Uncomment if needed
         # logging.getLogger().addHandler(logging.NullHandler()) # Add NullHandler to silence everything
-        print("Logging disabled.", file=sys.stderr)
     else:
         log_level_to_set = getattr(logging, args.log_level.upper())
         logging.basicConfig(

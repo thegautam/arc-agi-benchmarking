@@ -78,7 +78,6 @@ async def test_rate_limit_wait():
     expected_wait = 1.0 / rate
     actual_wait = end_time - start_time
     
-    print(f"Expected wait: {expected_wait:.3f}s, Actual wait: {actual_wait:.3f}s")
     # Time comparison still uses isclose
     assert math.isclose(actual_wait, expected_wait, abs_tol=0.05)
     
@@ -105,8 +104,6 @@ async def test_burst_then_rate():
     
     expected_wait = 1.0 / rate
     actual_wait = end_wait_time - start_wait_time
-    print(f"Burst time: {end_burst_time - start_burst_time:.3f}s")
-    print(f"Expected wait: {expected_wait:.3f}s, Actual wait: {actual_wait:.3f}s")
     # Time comparison still uses isclose
     assert math.isclose(actual_wait, expected_wait, abs_tol=0.05)
     
@@ -128,14 +125,12 @@ async def test_refill():
     await asyncio.sleep(wait_time + 0.01) 
 
     available = await limiter.get_available_requests()
-    print(f"Waited {wait_time:.3f}s. Expected refill: >=3.0. Actual available: {available:.3f}")
     # Check available is at least close to 3
     assert available >= 3.0 - 1e-5 
     assert available <= capacity
 
     await limiter.acquire(3)
     remainder = await limiter.get_available_requests()
-    print(f"After acquire(3), Remainder: {remainder:.3f}")
     # Check remainder is small (no rounding needed for < check)
     assert remainder < 0.2 
     assert remainder >= 0.0
@@ -170,10 +165,6 @@ async def test_concurrent_acquires():
     
     expected_rate_limited_tasks = num_tasks - capacity
     expected_duration = (expected_rate_limited_tasks / rate) if expected_rate_limited_tasks > 0 else 0
-
-    print(f"Concurrent test: {num_tasks} tasks, rate={rate}, capacity={capacity}")
-    print(f"Expected duration (approx): {expected_duration:.3f}s")
-    print(f"Actual total duration: {total_duration:.3f}s")
 
     # Time comparison still uses isclose
     assert math.isclose(total_duration, expected_duration, rel_tol=0.15, abs_tol=0.05) # More tolerance here
