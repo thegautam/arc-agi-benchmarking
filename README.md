@@ -28,7 +28,7 @@ The primary and recommended method for running multiple ARC tasks against variou
 *   **Rate Limiting:** Implements proactive provider-level rate limiting. Configure limits (requests per period) in `provider_config.yml`.
 *   **Resilient Retries:** Uses the `tenacity` library for automatic, exponential backoff retries on transient API errors (e.g., rate limit errors, server-side issues).
 *   **Centralized Logging:** Consistent logging across the orchestrator and individual task solvers (`ARCTester`). Log verbosity is controlled via the `--log-level` argument (options: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`, `NONE`).
-*   **Optional Metrics:** Collects performance timing metrics by default. This can be disabled using the `--disable-metrics` flag for cleaner output or when metrics are not needed.
+*   **Optional Metrics:** Performance timing metrics are **disabled by default**. They can be enabled using the `--enable-metrics` flag if detailed performance data is needed.
 *   **Simplified Workflow:** Manages all aspects of a batch run, from task queuing to result aggregation.
 
 **Example Usage:**
@@ -40,14 +40,14 @@ python cli/run_all.py \\
     --task_list_file data/task_lists/public_evaluation_v1.txt \\
     --model_configs "gpt-4o-2024-11-20,claude_opus" \\
     --num_attempts 2 \\
-    --log-level INFO
+    --log-level INFO \\
+    --enable-metrics
 
-# Run a smaller set of tasks, disabling metrics and with minimal logging
+# Run a smaller set of tasks, with metrics disabled (default) and minimal logging
 python cli/run_all.py \\
     --task_list_file data/task_lists/sample_tasks.txt \\
     --model_configs "gpt-4o-2024-11-20" \\
-    --log-level WARNING \\
-    --disable-metrics
+    --log-level WARNING
 ```
 
 **Key CLI Arguments for `cli/run_all.py`:**
@@ -61,7 +61,7 @@ python cli/run_all.py \\
 *   `--num_attempts`: Number of attempts by `ARCTester` for each prediction. (Default: `2`)
 *   `--retry_attempts`: Number of internal retry attempts by `ARCTester` for failed predictions. (Default: `2`)
 *   `--log-level`: Set logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`, `NONE`). (Default: `INFO`)
-*   `--disable-metrics`: Disable metrics collection and dumping. (Default: `False`, metrics are enabled)
+*   `--enable-metrics`: Enable metrics collection and dumping (disabled by default). (Default: `False`)
 
 **Provider Rate Limit Configuration (`provider_config.yml`):**
 
@@ -89,9 +89,9 @@ gemini:
 While `cli/run_all.py` is recommended for batch runs, you can still test a single task using `main.py`. This is useful for debugging specific tasks or adapter configurations.
 
 ```bash
-python main.py --data_dir data/arc-agi/data/evaluation --config claude_sonnet --task_id 0a1d4ef5 --log-level DEBUG
+python main.py --data_dir data/arc-agi/data/evaluation --config claude_sonnet --task_id 0a1d4ef5 --log-level DEBUG --enable-metrics
 ```
-Note: `main.py` also supports `--log-level` and `--disable-metrics`.
+Note: `main.py` also supports `--log-level` and `--enable-metrics` (metrics are disabled by default).
 
 ## Legacy Concurrency: Running with `GNU parallel` (Alternative)
 Previously, `GNU parallel` was suggested for concurrency. While `cli/run_all.py` is now the preferred method due to its integrated features, you can still use `parallel` if needed, but it will not benefit from the built-in rate limiting, tenacity retries, or centralized logging of `cli/run_all.py`.
