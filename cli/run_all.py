@@ -16,6 +16,7 @@ if project_root not in sys.path:
 from main import ARCTester
 from src.utils.task_utils import read_models_config, read_provider_rate_limits
 from src.utils.rate_limiter import AsyncRequestRateLimiter
+from src.utils.metrics import set_metrics_enabled
 
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, before_sleep_log
 
@@ -295,11 +296,20 @@ if __name__ == "__main__":
         "--log-level", 
         type=str, 
         default="INFO",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NONE"], # Added NONE
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NONE"],
         help="Set the logging level for the orchestrator and ARCTester (default: INFO). Use NONE to disable logging."
+    )
+    parser.add_argument(
+        "--enable-metrics",
+        action="store_true",
+        default=False,
+        help="Enable metrics collection and dumping (disabled by default)."
     )
 
     args = parser.parse_args()
+
+    # Set metrics enabled status based on CLI arg
+    set_metrics_enabled(args.enable_metrics)
 
     # Configure logging for the entire application based on --log-level
     # This will set the level for the root logger, affecting all loggers unless they are individually set to a more restrictive level.

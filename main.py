@@ -2,7 +2,7 @@ import json
 from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter
 from dotenv import load_dotenv
 import src.utils as utils
-from src.utils.metrics import timeit
+from src.utils.metrics import timeit, set_metrics_enabled
 from src.schemas import ARCTaskOutput, ARCPair, Attempt
 from src.prompts.prompt_manager import convert_task_pairs_to_prompt
 from src.utils.parsing import parse_and_validate_json
@@ -186,6 +186,12 @@ if __name__ == "__main__":
     parser.add_argument("--num_attempts", type=int, default=2, help="Number of attempts for each prediction")
     parser.add_argument("--retry_attempts", type=int, default=2, help="Number of retry attempts for failed predictions")
     parser.add_argument(
+        "--enable-metrics",
+        action="store_true",
+        default=False,
+        help="Enable metrics collection and dumping (disabled by default)."
+    )
+    parser.add_argument(
         "--log-level", 
         type=str, 
         default="WARNING", 
@@ -193,6 +199,9 @@ if __name__ == "__main__":
         help="Set the logging level (default: WARNING)"
     )
     args = parser.parse_args()
+
+    # Set metrics enabled status based on CLI arg first
+    set_metrics_enabled(args.enable_metrics)
 
     # Configure logging
     logging.basicConfig(
