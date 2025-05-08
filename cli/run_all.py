@@ -1,11 +1,11 @@
 import asyncio
 import os
-import argparse # For command-line arguments
-import time # Import time module for benchmarking
+import argparse
+import time
 from typing import List, Tuple, Dict, Any
 
-import sys # Add sys for path manipulation
-import logging # Added import for logger
+import sys
+import logging
 
 # Add the project root directory to sys.path
 # This allows cli/run_all.py to import 'main' and 'src' from the project root
@@ -13,15 +13,12 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# Imports from your project
-from main import ARCTester # The main class that runs a single test
+from main import ARCTester
 from src.utils.task_utils import read_models_config, read_provider_rate_limits
 from src.utils.rate_limiter import AsyncRequestRateLimiter
 
-# Tenacity imports
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, before_sleep_log
 
-# Module-level logger for cli/run_all.py
 logger = logging.getLogger(__name__)
 
 # Attempt to import provider-specific exceptions for retrying
@@ -43,7 +40,6 @@ except ImportError:
     GoogleResourceExhausted = None
     logger.warning("Google API Core SDK not installed or ResourceExhausted not found. Retries for Google rate limits will not be specific.")
 
-# Define RETRYABLE_EXCEPTIONS, filtering out any that couldn't be imported
 _RETRYABLE_EXCEPTIONS_CLASSES = tuple(
     exc for exc in (AnthropicRateLimitError, OpenAIRateLimitError, GoogleResourceExhausted) if exc is not None
 )
@@ -53,7 +49,7 @@ if not _RETRYABLE_EXCEPTIONS_CLASSES:
         "No specific retryable exception classes were successfully imported. "
         "Retries might not trigger as expected or might catch too broadly if fallback to general Exception is used."
     )
-    EFFECTIVE_RETRYABLE_EXCEPTIONS = (Exception,) if not _RETRYABLE_EXCEPTIONS_CLASSES else _RETRYABLE_EXCEPTIONS_CLASSES
+    EFFECTIVE_RETRYABLE_EXCEPTIONS = (Exception,)
 else:
     EFFECTIVE_RETRYABLE_EXCEPTIONS = _RETRYABLE_EXCEPTIONS_CLASSES
 
@@ -64,7 +60,6 @@ DEFAULT_MODEL_CONFIGS_TO_TEST: List[str] = [
     "gpt-4o-2024-11-20",
 ]
 
-# Default parameters for ARCTester - these can remain as they were
 DEFAULT_DATA_DIR = "data/arc-agi/data/evaluation"
 DEFAULT_SUBMISSIONS_ROOT = "submissions" # Changed from DEFAULT_SAVE_SUBMISSION_DIR_BASE
 DEFAULT_OVERWRITE_SUBMISSION = False
@@ -110,9 +105,7 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
                                   data_dir: str, submissions_root: str, # Changed from save_submission_dir_base
                                   overwrite_submission: bool, print_submission: bool,
                                   num_attempts: int, retry_attempts: int) -> bool: # removed print_logs
-    # Using the module-level logger defined earlier
     logger.info(f"[Orchestrator] Queuing task: {task_id}, config: {config_name}")
-    # Construct path like submissions/<config_name>
     save_submission_dir_for_config = os.path.join(submissions_root, config_name)
 
     # Apply tenacity retry decorator directly to the synchronous function
@@ -301,23 +294,37 @@ if __name__ == "__main__":
     parser.add_argument(
         "--log-level", 
         type=str, 
-        default="INFO",  # Defaulting orchestrator to INFO
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
-        help="Set the logging level for the orchestrator and ARCTester (default: INFO)"
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NONE"], # Added NONE
+        help="Set the logging level for the orchestrator and ARCTester (default: INFO). Use NONE to disable logging."
     )
 
     args = parser.parse_args()
 
     # Configure logging for the entire application based on --log-level
     # This will set the level for the root logger, affecting all loggers unless they are individually set to a more restrictive level.
-    log_level_to_set = getattr(logging, args.log_level.upper())
-    logging.basicConfig(
-        level=log_level_to_set,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[logging.StreamHandler(sys.stdout)] # Ensure logs go to stdout
-    )
+    if args.log_level == "NONE":
+        # Set level higher than critical to effectively disable standard logging
+        log_level_to_set = logging.CRITICAL + 1
+        # Alternatively, could add logging.NullHandler() or skip basicConfig,
+        # but setting level high is simple and effective for app logs.
+        logging.basicConfig(
+            level=log_level_to_set,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[logging.StreamHandler(sys.stdout)] # Still configure handler in case libraries log independently
+        )
+        # Optionally, disable existing handlers if libraries might add their own via basicConfig
+        # logging.getLogger().handlers.clear() # Uncomment if needed
+        # logging.getLogger().addHandler(logging.NullHandler()) # Add NullHandler to silence everything
+        print("Logging disabled.", file=sys.stderr)
+    else:
+        log_level_to_set = getattr(logging, args.log_level.upper())
+        logging.basicConfig(
+            level=log_level_to_set,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[logging.StreamHandler(sys.stdout)]
+        )
 
-    # Post-process model_configs from comma-separated string to list
     model_configs_list = [m.strip() for m in args.model_configs.split(',') if m.strip()]
     if not model_configs_list: 
         model_configs_list = DEFAULT_MODEL_CONFIGS_TO_TEST
