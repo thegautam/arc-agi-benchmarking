@@ -125,3 +125,82 @@ def test_gpt_4o_provider_e2e_mocked(mock_init_provider): # REMOVE mock_backscan_
         if os.path.exists(submission_filename):
             os.remove(submission_filename)
             print(f"\n🧹 Cleaned up submission file: {submission_filename}")
+
+
+# --- Test for main.py CLI execution --- #
+
+# Helper to setup sys.path for importing main.py from project root
+# This assumes tests might be run from various locations (e.g., project root or src directory)
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from main import main_cli # Import after sys.path modification
+
+@patch('main.ARCTester.generate_task_solution')
+@patch('main.ARCTester.init_provider')
+@patch('main.utils.read_models_config') # Patched at the source where it's used by main.py
+@patch('main.logging.basicConfig') # To suppress logging output during tests
+@patch('main.set_metrics_enabled') # To avoid side effects with metrics
+def test_main_cli_execution_and_arctester_mocking(mock_set_metrics_enabled,
+                                           mock_logging_basic_config,
+                                           mock_read_models_config,
+                                           mock_init_provider,
+                                           mock_generate_task_solution):
+    """Tests that main.py's main_cli function can be called, initializes ARCTester,
+    and calls its generate_task_solution method, all with mocks in place."""
+    print("\n🧪 Running test_main_cli_execution_and_arctester_mocking")
+
+    # 1. Configure the mock for read_models_config (used by ARCTester in main.py)
+    mock_model_cfg = MagicMock()
+    mock_model_cfg.provider = "cli_mock_provider"
+    mock_model_cfg.model_name = "cli_mock_model"
+    mock_model_cfg.kwargs = {}
+    mock_model_cfg.pricing = MagicMock(input=0, output=0)
+    mock_read_models_config.return_value = mock_model_cfg
+
+    # 2. Configure the mock for init_provider (called by ARCTester in main.py)
+    mock_cli_provider_instance = MagicMock(spec=ProviderAdapter)
+    mock_init_provider.return_value = mock_cli_provider_instance
+
+    # 3. Configure the mock for generate_task_solution (called by ARCTester in main.py)
+    mock_generate_task_solution.return_value = None # Doesn't need to do anything complex
+
+    # 4. Prepare CLI arguments for main_cli
+    cli_test_args = [
+        "--data_dir", "dummy/cli_data",
+        "--task_id", "dummy_cli_task",
+        "--config", "dummy_cli_config", # This will be passed to read_models_config
+        "--log-level", "CRITICAL", # Keep test console clean
+        "--save_submission_dir", "dummy/cli_submissions" # Example argument
+    ]
+
+    # 5. Call the main_cli function from main.py
+    try:
+        main_cli(cli_test_args)
+        print("main_cli call completed.")
+    except Exception as e:
+        pytest.fail(f"main_cli raised an unexpected exception: {e}\nArgs: {cli_test_args}")
+
+    # 6. Assertions
+    mock_read_models_config.assert_called_once_with("dummy_cli_config")
+    print(f"mock_read_models_config called with: {mock_read_models_config.call_args}")
+    
+    mock_init_provider.assert_called_once_with("cli_mock_provider")
+    print(f"mock_init_provider called with: {mock_init_provider.call_args}")
+    
+    mock_generate_task_solution.assert_called_once()
+    call_args_list = mock_generate_task_solution.call_args_list
+    if call_args_list:
+        args, kwargs = call_args_list[0]
+        assert kwargs.get('data_dir') == "dummy/cli_data", f"Expected data_dir dummy/cli_data, got {kwargs.get('data_dir')}"
+        assert kwargs.get('task_id') == "dummy_cli_task", f"Expected task_id dummy_cli_task, got {kwargs.get('task_id')}"
+        print(f"mock_generate_task_solution called with kwargs: {kwargs}")
+    else:
+        pytest.fail("mock_generate_task_solution was not called with expected arguments")
+
+    mock_set_metrics_enabled.assert_called_once_with(False) # Default behavior
+    print(f"mock_set_metrics_enabled called with: {mock_set_metrics_enabled.call_args}")
+    
+    mock_logging_basic_config.assert_called_once()
+    print("✅ test_main_cli_execution_and_arctester_mocking completed successfully.")

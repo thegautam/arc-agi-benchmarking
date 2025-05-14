@@ -1,3 +1,13 @@
+import sys
+import os
+
+# Added: Add the src directory to sys.path to allow direct execution of main.py
+# This assumes main.py is in the project root and 'src' is a subdirectory.
+_project_root = os.path.dirname(os.path.abspath(__file__))
+_src_dir = os.path.join(_project_root, 'src')
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+
 import json
 from arc_agi_benchmarking.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter
 from dotenv import load_dotenv
@@ -7,7 +17,6 @@ from arc_agi_benchmarking.schemas import ARCTaskOutput, ARCPair, Attempt
 from arc_agi_benchmarking.prompts.prompt_manager import convert_task_pairs_to_prompt
 from arc_agi_benchmarking.utils.parsing import parse_and_validate_json
 from typing import List, Any, Optional
-import os
 import argparse
 import logging
 
@@ -182,8 +191,8 @@ class ARCTester:
             logger.warning(f"No valid predictions for task {task_id}, ModelConfig {test_id} after all attempts. Skipping submission.")
 
         return task_attempts if task_attempts else None
-    
-if __name__ == "__main__":
+
+def main_cli(cli_args: Optional[List[str]] = None):
     parser = argparse.ArgumentParser(description="Run ARC Tester")
     parser.add_argument("--data_dir", type=str, help="Data set to run. Configure in config/config.json")
     parser.add_argument("--task_id", type=str, help="Specific task ID to run")
@@ -212,7 +221,7 @@ if __name__ == "__main__":
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
         help="Set the logging level (default: INFO)"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(cli_args)
 
     # Set metrics enabled status based on CLI arg first
     set_metrics_enabled(args.enable_metrics)
@@ -236,3 +245,8 @@ if __name__ == "__main__":
         data_dir=args.data_dir,
         task_id=args.task_id
     )
+    # Optionally return the solver or a status for more detailed testing if needed
+    # For this test, we'll just ensure it runs without error.
+
+if __name__ == "__main__":
+    main_cli()
