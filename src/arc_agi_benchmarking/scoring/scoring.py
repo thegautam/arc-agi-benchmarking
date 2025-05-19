@@ -3,7 +3,7 @@ from typing import List, Tuple
 from pathlib import Path
 from typing import List, Tuple, Dict
 import json
-from arc_agi_benchmarking.schemas import ARCTask, BenchmarkedTaskResults, Attempt, ScoringResult
+from src.arc_agi_benchmarking.schemas import ARCTask, BenchmarkedTaskResults, Attempt, ScoringResult
 import warnings
 
 
@@ -144,16 +144,16 @@ class ARCScorer:
             
             total_score += scoring_result.score
             total_tasks += 1
-            self.total_cost += scoring_result.cost
+            self.total_cost += scoring_result.total_cost
             self.total_attempts += scoring_result.attempts
             
             task_results[task_id] = {
                 "score": scoring_result.score,
-                "cost": scoring_result.cost,
+                "cost": scoring_result.total_cost,
                 "attempts": scoring_result.attempts
             }
 
-            self.print_log(f"    Task {task_id} score: {scoring_result.score:.2f}, cost: ${scoring_result.cost:.4f}, attempts: {scoring_result.attempts}")
+            self.print_log(f"    Task {task_id} score: {scoring_result.score:.2f}, cost: ${scoring_result.total_cost:.4f}, attempts: {scoring_result.attempts}")
 
         # Calculate average costs
         avg_cost_per_task = self.total_cost / total_tasks if total_tasks > 0 else 0
