@@ -91,7 +91,6 @@ class OpenRouterAdapter(OpenAIBaseAdapter):
             metadata=metadata,
             answer=self._get_content(response) # Inherited
         )
-
         return attempt
 
     def extract_json_from_response(self, input_response: str) -> list[list[int]] | None:
