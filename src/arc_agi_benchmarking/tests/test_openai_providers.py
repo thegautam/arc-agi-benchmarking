@@ -8,6 +8,7 @@ from arc_agi_benchmarking.adapters.open_ai import OpenAIAdapter
 from arc_agi_benchmarking.adapters.grok import GrokAdapter
 from arc_agi_benchmarking.adapters.deepseek import DeepseekAdapter
 from arc_agi_benchmarking.adapters.fireworks import FireworksAdapter
+from arc_agi_benchmarking.adapters.openrouter import OpenRouterAdapter
 # Import all adapters to ensure they are available for discovery
 import arc_agi_benchmarking.adapters 
 
