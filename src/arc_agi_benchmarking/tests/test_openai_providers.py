@@ -284,7 +284,8 @@ class TestOpenAIBaseProviderLogic:
         # Patch the methods on the *specific class* being tested
         with patch.object(adapter_class, '_call_ai_model') as mock_call_ai, \
              patch.object(adapter_class, '_get_content', return_value='[[1]]') as mock_get_content, \
-             patch.object(adapter_class, '_get_role', return_value="assistant") as mock_get_role:
+             patch.object(adapter_class, '_get_role', return_value="assistant") as mock_get_role, \
+             patch.object(adapter_class, '_get_reasoning_summary', return_value="Reasoning summary") as mock_get_reasoning_summary:
 
             mock_call_ai.return_value = mock_response_case_a_no_reasoning # Use the Case A fixture
             

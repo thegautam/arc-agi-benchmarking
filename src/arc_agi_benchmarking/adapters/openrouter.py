@@ -48,9 +48,8 @@ class OpenRouterAdapter(OpenAIBaseAdapter):
         
         # Retrieve usage *after* cost calculation, as cost calc might infer/update reasoning tokens
         usage = self._get_usage(response)
-        
-        prompt_cost = usage.prompt_tokens * self.model_config.pricing.input / 1_000_000
-        completion_cost = usage.completion_tokens * self.model_config.pricing.output / 1_000_000
+
+        reasoning_summary = self._get_reasoning_summary(response)
 
         # Convert input messages to choices
         input_choices = [
@@ -80,6 +79,7 @@ class OpenRouterAdapter(OpenAIBaseAdapter):
             end_timestamp=end_time,
             choices=all_choices,
             kwargs=self.model_config.kwargs,
+            reasoning_summary=reasoning_summary,
             usage=usage,
             cost=cost,
             task_id=task_id,
@@ -92,6 +92,21 @@ class OpenRouterAdapter(OpenAIBaseAdapter):
             answer=self._get_content(response) # Inherited
         )
         return attempt
+    
+    def _get_reasoning_summary(self, response: Any) -> str:
+        """Get the reasoning summary from the response."""
+        reasoning = ""
+        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
+            if hasattr(response, 'choices') and response.choices and hasattr(response.choices[0], 'message'):
+                reasoning = getattr(response.choices[0].message, 'reasoning', "") or ""
+        else:  # APIType.RESPONSES
+            # Check if reasoning is available in responses format
+            reasoning = getattr(response, 'reasoning', "")
+            # Fallback: check if it's in a nested structure
+            if not reasoning and hasattr(response, 'choices') and response.choices and hasattr(response.choices[0], 'reasoning'):
+                reasoning = getattr(response.choices[0], 'reasoning', "") or ""
+        
+        return reasoning.strip() if reasoning else ""
 
     def extract_json_from_response(self, input_response: str) -> list[list[int]] | None:
         """Placeholder for OpenRouter-specific JSON extraction. Assumes standard OpenAI format for now."""
