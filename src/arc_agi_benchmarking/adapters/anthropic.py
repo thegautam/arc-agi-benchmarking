@@ -6,7 +6,11 @@ from dotenv import load_dotenv
 import json
 from typing import List, Optional
 from datetime import datetime, timezone
+import logging
+
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 class AnthropicAdapter(ProviderAdapter):
     def init_client(self):
@@ -75,6 +79,9 @@ class AnthropicAdapter(ProviderAdapter):
         # Combine input and response choices
         all_choices = input_choices + response_choices
 
+        # Thinking blocks from Anthropic
+        reasoning_summary = self._get_reasoning_summary(response)
+
         # Create metadata using our Pydantic models
         metadata = AttemptMetadata(
             model=self.model_config.model_name,
@@ -83,6 +90,7 @@ class AnthropicAdapter(ProviderAdapter):
             end_timestamp=end_time,
             choices=all_choices,
             kwargs=self.model_config.kwargs,  # Use kwargs from model config
+            reasoning_summary=reasoning_summary,
             usage=Usage(
                 prompt_tokens=response.usage.input_tokens,
                 completion_tokens=response.usage.output_tokens,
@@ -129,6 +137,22 @@ class AnthropicAdapter(ProviderAdapter):
             **self.model_config.kwargs
         )
     
+    def _get_reasoning_summary(self, response: Any) -> str:
+        """Get the reasoning summary from the response."""
+        reasoning_summary = None
+        thinking_texts: List[str] = []
+        try:
+            if hasattr(response, 'content') and response.content:
+                for block in response.content:
+                    if hasattr(block, 'type') and block.type == "thinking" and hasattr(block, 'thinking'):
+                        if isinstance(block.thinking, str): # Ensure it's a string
+                            thinking_texts.append(block.thinking)
+            if thinking_texts:
+                reasoning_summary = "\n\n".join(thinking_texts)
+        except Exception as e:
+            logger.warning(f"Error extracting thinking blocks from Anthropic response: {e}", exc_info=True)
+        return reasoning_summary
+
     def extract_json_from_response(self, input_response: str) -> List[List[int]]:
         tools = [
             {
