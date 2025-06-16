@@ -1,5 +1,5 @@
 import pytest
-from arc_agi_benchmarking.utils.parsing import backscan_json_parser
+from arc_agi_benchmarking.utils.parsing import backscan_json_parser, parse_and_validate_json
 
 # Test cases for backscan_json_parser
 
@@ -80,4 +80,12 @@ def test_backscan_no_opening_bracket_found():
     # Current logic finds the last ']' and scans back for '['.
     # It should find the matching '[' for the final ']' which starts before 3.
     # Parses to [3, 4]. This is not List[List]. Should return None.
-    assert backscan_json_parser(log) is None 
+    assert backscan_json_parser(log) is None
+
+def test_boxed_json():
+    response = r""" ### Summary:\nWe analyzed the training examples to identify the pattern that transforms the input into the output. The output consists of six lists derived from the two input lists as follows:\n1. The first input list is repeated three times.\n2. The second input list is repeated three times.\n3. The second and first elements of the first input list are alternated three times.\n4. The second and first elements of the second input list are alternated three times.\n5. Repeat of the first output list.\n6. Repeat of the second output list.\n\nApplying this pattern to the test input `[[3, 2], [7, 8]]`, we constructed the output by following these steps systematically.\n\nFinal Output:\n```\n[[3, 2, 3, 2, 3, 2], [7, 8, 7, 8, 7, 8], [2, 3, 2, 3, 2, 3], [8, 7, 8, 7, 8, 7], [3, 2, 3, 2, 3, 2], [7, 8, 7, 8, 7, 8]]\n```\n\n\boxed{[ [3, 2, 3, 2, 3, 2], [7, 8, 7, 8, 7, 8], [2, 3, 2, 3, 2, 3], [8, 7, 8, 7, 8, 7], [3, 2, 3, 2, 3, 2], [7, 8, 7, 8, 7, 8] ]}"""
+    
+    expected_output = [[3, 2, 3, 2, 3, 2], [7, 8, 7, 8, 7, 8], [2, 3, 2, 3, 2, 3], [8, 7, 8, 7, 8, 7], [3, 2, 3, 2, 3, 2], [7, 8, 7, 8, 7, 8]]
+    
+    parsed_output = parse_and_validate_json(response)
+    assert parsed_output == expected_output 

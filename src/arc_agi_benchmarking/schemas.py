@@ -155,9 +155,9 @@ class Attempt(BaseModel):
     def parse_answer(cls, v: Union[str, List[List[int]]]):
         """Parse answer strings using the backscan_json_parser."""
         if isinstance(v, str):
-            from .utils.parsing import backscan_json_parser
+            from .utils.parsing import parse_and_validate_json
 
-            parsed = backscan_json_parser(v)
+            parsed = parse_and_validate_json(v)
             if parsed is not None:
                 return parsed
         return v

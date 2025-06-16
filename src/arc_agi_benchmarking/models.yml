@@ -662,6 +662,37 @@ models:
       input: 1.25
       output: 10.00
 
+#################
+#### Mistral ####
+#################
+
+  - name: "magistral-small-2506"
+    model_name: "mistralai/magistral-small-2506"
+    provider: "openrouter"
+    max_tokens: 32000 # Max is 40,000. Leaving cushion for prompt
+    pricing:
+      date: "2025-06-12"
+      input: 0.50
+      output: 1.50
+
+  - name: "magistral-medium-2506"
+    model_name: "mistralai/magistral-medium-2506"
+    provider: "openrouter"
+    max_tokens: 32000 # Max is 40,000. Leaving cushion for prompt
+    pricing:
+      date: "2025-06-12"
+      input: 2.00
+      output: 5.00
+
+  - name: "magistral-medium-2506-thinking"
+    model_name: "mistralai/magistral-medium-2506:thinking"
+    provider: "openrouter"
+    max_tokens: 32000 # Max is 40,000. Leaving cushion for prompt
+    pricing:
+      date: "2025-06-12"
+      input: 2.00
+      output: 5.00
+
 ################
 #### DeepSeek ####
 ################
