@@ -100,7 +100,7 @@ gemini:
 While `cli/run_all.py` is recommended for batch runs, you can still test a single task using `main.py`. This is useful for debugging specific tasks or adapter configurations.
 
 ```bash
-python main.py --data_dir data/arc-agi/data/evaluation --config claude_sonnet --task_id 0a1d4ef5 --log-level DEBUG --enable-metrics
+python main.py --data_dir data/arc-agi/data/evaluation --config grok-4-0709 --task_id 0a1d4ef5 --log-level DEBUG --enable-metrics
 ```
 Note: `main.py` also supports `--log-level` and `--enable-metrics` (metrics are disabled by default).
 

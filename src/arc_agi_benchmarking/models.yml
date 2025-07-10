@@ -768,3 +768,32 @@ models:
       date: "2025-03-24"
       input: 0.90   # Off Fireworks pricing page 3/5/2024
       output: 0.90
+
+########################
+###### xAI ############
+########################
+
+  - name: "grok-4-0709"
+    model_name: "grok-4-0709"
+    provider: "xai"
+    max_completion_tokens: 128000
+    temperature: 0.7
+    top_p: 1.0
+    stream: true
+    pricing:
+      date: "2025-07-09"
+      input: 3.00
+      output: 15.00
+
+  - name: "grok-3-mini-xai-high"
+    model_name: "grok-3-mini"
+    provider: "xai"
+    max_completion_tokens: 100000
+    reasoning_effort: "high"
+    temperature: 0.7
+    top_p: 1.0
+    stream: true
+    pricing:
+      date: "2025-07-09"
+      input: 0.30
+      output: 0.50

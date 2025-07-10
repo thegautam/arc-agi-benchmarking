@@ -7,6 +7,9 @@ import os
 from dotenv import load_dotenv
 import json
 from openai import OpenAI
+from openai.types.chat import ChatCompletion, ChatCompletionMessage
+from openai.types.chat.chat_completion import Choice as OpenAIChoice
+from openai.types import CompletionUsage
 from datetime import datetime, timezone
 from arc_agi_benchmarking.schemas import APIType, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 from typing import Optional, Any, List, Dict # Added List, Dict
@@ -45,11 +48,117 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         """
         Make a call to the OpenAI Chat Completions API
         """
+        logger.debug(f"Calling OpenAI API with model: {self.model_config.model_name} and kwargs: {self.model_config.kwargs}")
+        
+        # Check if streaming is enabled
+        stream_enabled = self.model_config.kwargs.get('stream', False) or getattr(self.model_config, 'stream', False)
+        if stream_enabled:
+            return self._chat_completion_stream(messages)
+        
         return self.client.chat.completions.create(
             model=self.model_config.model_name,
             messages=messages,
             **self.model_config.kwargs
         )
+    
+    def _chat_completion_stream(self, messages: List[Dict[str, str]]) -> Any:
+        """
+        Make a streaming call to the OpenAI Chat Completions API and return the final response
+        """
+        logger.debug(f"Calling OpenAI API with streaming for model: {self.model_config.model_name} and kwargs: {self.model_config.kwargs}")
+        
+        # Create the stream with stream=True and include_usage for token tracking
+        stream = self.client.chat.completions.create(
+            model=self.model_config.model_name,
+            messages=messages,
+            stream=True,
+            stream_options={"include_usage": True},  # Include usage stats in stream
+            **{k: v for k, v in self.model_config.kwargs.items() if k != 'stream'}  # Remove stream from kwargs to avoid duplication
+        )
+        
+        print("Starting streaming response...")
+        chunk_count = 0
+        
+        # Collect all chunks and track metadata
+        collected_messages = []
+        last_chunk = None
+        finish_reason = None
+        
+        for chunk in stream:
+            chunk_count += 1
+            if chunk_count % 100 == 0:  # Only print every 100 chunks to reduce verbosity
+                print(f"Received {chunk_count} chunks...", end="\r")
+            
+            # Keep track of the last chunk for metadata
+            last_chunk = chunk
+            
+            # Collect content from each chunk
+            if chunk.choices and len(chunk.choices) > 0:
+                if chunk.choices[0].delta and chunk.choices[0].delta.content is not None:
+                    collected_messages.append(chunk.choices[0].delta.content)
+                # Track finish reason if available
+                if chunk.choices[0].finish_reason is not None:
+                    finish_reason = chunk.choices[0].finish_reason
+        
+        print(f"\nStreaming complete. Total chunks: {chunk_count}")
+        
+        # Build a complete response object that looks like a non-streaming response
+        final_content = ''.join(collected_messages)
+        
+        # Extract usage data from the last chunk if available
+        usage_data = None
+        if last_chunk and hasattr(last_chunk, 'usage') and last_chunk.usage:
+            logger.debug(f"Usage data: {last_chunk.usage}")
+            usage_data = last_chunk.usage
+        
+        # Create response that matches non-streaming format
+        if usage_data:
+            # Use actual usage data from stream
+            mock_response = ChatCompletion(
+                id=last_chunk.id if last_chunk else 'stream-response',
+                choices=[
+                    OpenAIChoice(
+                        finish_reason=finish_reason or 'stop',
+                        index=0,
+                        message=ChatCompletionMessage(
+                            content=final_content,
+                            role='assistant'
+                        ),
+                        logprobs=None
+                    )
+                ],
+                created=last_chunk.created if last_chunk else 0,
+                model=last_chunk.model if last_chunk else self.model_config.model_name,
+                object='chat.completion',
+                usage=usage_data  # Use the actual usage data from stream
+            )
+        else:
+            # Fallback if no usage data (shouldn't happen with include_usage=True)
+            logger.warning("No usage data received in streaming response")
+            mock_response = ChatCompletion(
+                id=last_chunk.id if last_chunk else 'stream-response',
+                choices=[
+                    OpenAIChoice(
+                        finish_reason=finish_reason or 'stop',
+                        index=0,
+                        message=ChatCompletionMessage(
+                            content=final_content,
+                            role='assistant'
+                        ),
+                        logprobs=None
+                    )
+                ],
+                created=last_chunk.created if last_chunk else 0,
+                model=last_chunk.model if last_chunk else self.model_config.model_name,
+                object='chat.completion',
+                usage=CompletionUsage(
+                    completion_tokens=0,
+                    prompt_tokens=0,
+                    total_tokens=0
+                )
+            )
+        
+        return mock_response
     
     def _delete_response(self, response_id: str) -> None:
         """

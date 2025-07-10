@@ -323,3 +323,104 @@ class TestOpenAIBaseProviderLogic:
             assert attempt.metadata.choices[0].message.content == prompt
             assert attempt.metadata.choices[1].message.role == "assistant"
             assert attempt.metadata.choices[1].message.content == "[[1]]"
+
+    # --- Test streaming functionality ---
+    def test_call_ai_model_streaming_enabled(self, adapter_instance, mock_response_case_a_no_reasoning):
+        """Test that _call_ai_model uses streaming when stream=True in config."""
+        # Set streaming to True in model config
+        adapter_instance.model_config.stream = True
+        adapter_instance.model_config.api_type = APIType.CHAT_COMPLETIONS
+        adapter_instance.model_config.kwargs = {'stream': True}
+        
+        # Mock the _chat_completion method to check if streaming is handled
+        with patch.object(adapter_instance, '_chat_completion') as mock_completion:
+            mock_completion.return_value = mock_response_case_a_no_reasoning
+            
+            prompt = "Test streaming prompt"
+            
+            result = adapter_instance._call_ai_model(prompt)
+            
+            # Verify _chat_completion was called (which handles streaming internally)
+            mock_completion.assert_called_once()
+            # Verify the result is our expected response
+            assert result == mock_response_case_a_no_reasoning
+
+    def test_call_ai_model_streaming_disabled(self, adapter_instance, mock_response_case_a_no_reasoning):
+        """Test that _call_ai_model uses regular completion when stream=False or not set."""
+        # Ensure streaming is False or not set
+        adapter_instance.model_config.stream = False
+        adapter_instance.model_config.api_type = APIType.CHAT_COMPLETIONS
+        
+        with patch.object(adapter_instance, '_chat_completion') as mock_completion, \
+             patch.object(adapter_instance, '_chat_completion_stream') as mock_stream:
+            
+            mock_completion.return_value = mock_response_case_a_no_reasoning
+            
+            prompt = "Test non-streaming prompt"
+            messages = [{"role": "user", "content": prompt}]
+            
+            result = adapter_instance._call_ai_model(prompt)
+            
+            # Verify regular completion was called
+            mock_completion.assert_called_once_with(messages)
+            # Verify streaming was NOT called
+            mock_stream.assert_not_called()
+            # Verify the result is our expected response
+            assert result == mock_response_case_a_no_reasoning
+
+    def test_chat_completion_stream_functionality(self, adapter_instance, mock_response_case_a_no_reasoning):
+        """Test the streaming functionality works correctly with proper chunk handling."""
+        # Create mock chunks for streaming
+        mock_chunks = []
+        for i in range(3):
+            chunk = MagicMock()
+            chunk.choices = [MagicMock()]
+            chunk.choices[0].delta.content = f"chunk{i}"
+            chunk.id = "test-id"
+            chunk.created = 12345
+            chunk.model = "test-model"
+            mock_chunks.append(chunk)
+        
+        # Mock the client's chat.completions.create to return an iterable
+        adapter_instance.client.chat.completions.create = MagicMock(return_value=iter(mock_chunks))
+        adapter_instance.model_config.kwargs = {'stream': True}
+        
+        messages = [{"role": "user", "content": "Test streaming"}]
+        
+        # Capture print output to verify status messages
+        with patch('builtins.print') as mock_print:
+            result = adapter_instance._chat_completion_stream(messages)
+        
+        # Verify the client was called with correct parameters
+        adapter_instance.client.chat.completions.create.assert_called_once()
+        call_args = adapter_instance.client.chat.completions.create.call_args
+        
+        # Check that model and messages were passed correctly
+        assert call_args[1]['model'] == adapter_instance.model_config.model_name
+        assert call_args[1]['messages'] == messages
+        assert call_args[1]['stream'] is True
+        
+        # Verify result contains the concatenated content
+        assert result.choices[0].message.content == "chunk0chunk1chunk2"
+        
+        # Verify status messages were printed
+        print_calls = [call.args[0] for call in mock_print.call_args_list]
+        assert "Starting streaming response..." in print_calls
+        assert "\nStreaming complete. Total chunks: 3" in print_calls
+
+    def test_streaming_config_attribute_access(self, adapter_instance):
+        """Test that streaming config is properly accessed from model config."""
+        # Test when stream attribute doesn't exist (should default to False)
+        assert not hasattr(adapter_instance.model_config, 'stream')
+        stream_enabled = getattr(adapter_instance.model_config, 'stream', False)
+        assert stream_enabled is False
+        
+        # Test when stream attribute is explicitly set to True
+        adapter_instance.model_config.stream = True
+        stream_enabled = getattr(adapter_instance.model_config, 'stream', False)
+        assert stream_enabled is True
+        
+        # Test when stream attribute is explicitly set to False
+        adapter_instance.model_config.stream = False
+        stream_enabled = getattr(adapter_instance.model_config, 'stream', False)
+        assert stream_enabled is False

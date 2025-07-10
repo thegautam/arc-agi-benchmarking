@@ -29,6 +29,10 @@ grok:
   rate: 400     # 400 requests
   period: 60    # per 60 seconds
 
+xai:
+  rate: 40     # 10 requests
+  period: 60    # per 1 second
+
 openrouter:
   rate: 400     # 400 requests
   period: 60    # per 60 seconds
