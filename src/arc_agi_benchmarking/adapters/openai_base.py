@@ -1,28 +1,45 @@
-# This comment is just to trigger a rename operation via the edit tool
-# The actual content change will happen in the next step. 
-
 import abc
 from .provider import ProviderAdapter
-import os
 from dotenv import load_dotenv
-import json
-from openai import OpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice as OpenAIChoice
 from openai.types import CompletionUsage
-from datetime import datetime, timezone
-from arc_agi_benchmarking.schemas import APIType, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
-from typing import Optional, Any, List, Dict # Added List, Dict
+from arc_agi_benchmarking.schemas import APIType, Cost, Attempt, Usage, CompletionTokensDetails
+from arc_agi_benchmarking.errors import TokenMismatchError
+from typing import Optional, Any, List, Dict
 from time import sleep
 import logging
+import time
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 
-class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
+# Helper classes for responses API mock structure
+class _ResponsesContent:
+    def __init__(self, text):
+        self.text = text
+        self.type = "output_text"
 
+class _ResponsesOutput:
+    def __init__(self, text):
+        self.content = [_ResponsesContent(text)]
+        self.role = "assistant"
+        self.type = "message"
+
+class _ResponsesResponse:
+    def __init__(self, model_name, content, usage_data, response_id, finish_reason="stop"):
+        self.id = response_id or "stream-response"
+        self.model = model_name
+        self.object = "response"
+        self.output = [_ResponsesOutput(content)]
+        self.finish_reason = finish_reason
+        self.usage = usage_data
+
+
+class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
+    
 
     @abc.abstractmethod
     def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
@@ -36,12 +53,23 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         """
         Call the appropriate OpenAI API based on the api_type
         """
+        
+        # Validate that background and stream are not both enabled for responses API
+        stream_enabled = self.model_config.kwargs.get('stream', False) or getattr(self.model_config, 'stream', False)
         messages = [{"role": "user", "content": prompt}]
         if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
+            if stream_enabled:
+                return self._chat_completion_stream(messages)
             return self._chat_completion(messages)
+        
         else:  # APIType.RESPONSES
             # account for different parameter names between chat completions and responses APIs
             self._normalize_to_responses_kwargs()
+            background_enabled = getattr(self.model_config, 'background', False)
+            if stream_enabled and background_enabled:
+                raise ValueError("Cannot enable both streaming and background for the responses API type.")
+            if stream_enabled:
+                return self._responses_stream(messages)
             return self._responses(messages)
     
     def _chat_completion(self, messages: List[Dict[str, str]]) -> Any:
@@ -49,11 +77,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         Make a call to the OpenAI Chat Completions API
         """
         logger.debug(f"Calling OpenAI API with model: {self.model_config.model_name} and kwargs: {self.model_config.kwargs}")
-        
-        # Check if streaming is enabled
-        stream_enabled = self.model_config.kwargs.get('stream', False) or getattr(self.model_config, 'stream', False)
-        if stream_enabled:
-            return self._chat_completion_stream(messages)
+    
         
         return self.client.chat.completions.create(
             model=self.model_config.model_name,
@@ -61,104 +85,80 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
             **self.model_config.kwargs
         )
     
-    def _chat_completion_stream(self, messages: List[Dict[str, str]]) -> Any:
+    def _chat_completion_stream(self, messages: List[Dict[str, str]]) -> ChatCompletion:
         """
-        Make a streaming call to the OpenAI Chat Completions API and return the final response
+        Make a streaming call to the OpenAI Chat Completions API and return the final response.
         """
-        logger.debug(f"Calling OpenAI API with streaming for model: {self.model_config.model_name} and kwargs: {self.model_config.kwargs}")
+        logger.debug(f"Starting streaming chat completion for model: {self.model_config.model_name}")
         
-        # Create the stream with stream=True and include_usage for token tracking
-        stream = self.client.chat.completions.create(
-            model=self.model_config.model_name,
-            messages=messages,
-            stream=True,
-            stream_options={"include_usage": True},  # Include usage stats in stream
-            **{k: v for k, v in self.model_config.kwargs.items() if k != 'stream'}  # Remove stream from kwargs to avoid duplication
-        )
+        # Prepare kwargs for streaming, removing 'stream' to avoid duplication
+        stream_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k != 'stream'}
         
-        print("Starting streaming response...")
-        chunk_count = 0
-        
-        # Collect all chunks and track metadata
-        collected_messages = []
-        last_chunk = None
-        finish_reason = None
-        
-        for chunk in stream:
-            chunk_count += 1
-            if chunk_count % 100 == 0:  # Only print every 100 chunks to reduce verbosity
-                print(f"Received {chunk_count} chunks...", end="\r")
-            
-            # Keep track of the last chunk for metadata
-            last_chunk = chunk
-            
-            # Collect content from each chunk
-            if chunk.choices and len(chunk.choices) > 0:
-                if chunk.choices[0].delta and chunk.choices[0].delta.content is not None:
-                    collected_messages.append(chunk.choices[0].delta.content)
-                # Track finish reason if available
-                if chunk.choices[0].finish_reason is not None:
-                    finish_reason = chunk.choices[0].finish_reason
-        
-        print(f"\nStreaming complete. Total chunks: {chunk_count}")
-        
-        # Build a complete response object that looks like a non-streaming response
-        final_content = ''.join(collected_messages)
-        
-        # Extract usage data from the last chunk if available
-        usage_data = None
-        if last_chunk and hasattr(last_chunk, 'usage') and last_chunk.usage:
-            logger.debug(f"Usage data: {last_chunk.usage}")
-            usage_data = last_chunk.usage
-        
-        # Create response that matches non-streaming format
-        if usage_data:
-            # Use actual usage data from stream
-            mock_response = ChatCompletion(
-                id=last_chunk.id if last_chunk else 'stream-response',
-                choices=[
-                    OpenAIChoice(
-                        finish_reason=finish_reason or 'stop',
-                        index=0,
-                        message=ChatCompletionMessage(
-                            content=final_content,
-                            role='assistant'
-                        ),
-                        logprobs=None
-                    )
-                ],
-                created=last_chunk.created if last_chunk else 0,
-                model=last_chunk.model if last_chunk else self.model_config.model_name,
-                object='chat.completion',
-                usage=usage_data  # Use the actual usage data from stream
+        try:
+            # Create the stream with usage tracking
+            stream = self.client.chat.completions.create(
+                model=self.model_config.model_name,
+                messages=messages,
+                stream=True,
+                stream_options={"include_usage": True},
+                **stream_kwargs
             )
-        else:
-            # Fallback if no usage data (shouldn't happen with include_usage=True)
-            logger.warning("No usage data received in streaming response")
-            mock_response = ChatCompletion(
-                id=last_chunk.id if last_chunk else 'stream-response',
-                choices=[
-                    OpenAIChoice(
-                        finish_reason=finish_reason or 'stop',
-                        index=0,
-                        message=ChatCompletionMessage(
-                            content=final_content,
-                            role='assistant'
-                        ),
-                        logprobs=None
-                    )
-                ],
-                created=last_chunk.created if last_chunk else 0,
-                model=last_chunk.model if last_chunk else self.model_config.model_name,
-                object='chat.completion',
-                usage=CompletionUsage(
-                    completion_tokens=0,
+            
+            # Process the stream and collect data
+            content_chunks = []
+            last_chunk = None
+            finish_reason = "stop"
+            
+            for chunk in stream:
+                last_chunk = chunk
+                
+                # Extract content from chunk
+                if chunk.choices and chunk.choices[0].delta.content:
+                    content_chunks.append(chunk.choices[0].delta.content)
+                
+                # Track finish reason
+                if chunk.choices and chunk.choices[0].finish_reason:
+                    finish_reason = chunk.choices[0].finish_reason
+            
+            # Build final response
+            final_content = ''.join(content_chunks)
+            
+            # Get usage data and metadata from last chunk
+            usage_data = last_chunk.usage if last_chunk and hasattr(last_chunk, 'usage') else None
+            response_id = last_chunk.id if last_chunk else f"stream-{int(time.time())}"
+            
+            if not usage_data:
+                logger.warning("No usage data received from streaming response")
+                usage_data = CompletionUsage(
                     prompt_tokens=0,
+                    completion_tokens=0,
                     total_tokens=0
                 )
+            
+            logger.debug(f"Streaming complete. Content length: {len(final_content)}")
+            
+            return ChatCompletion(
+                id=response_id,
+                choices=[
+                    OpenAIChoice(
+                        finish_reason=finish_reason,
+                        index=0,
+                        message=ChatCompletionMessage(
+                            content=final_content,
+                            role='assistant'
+                        ),
+                        logprobs=None
+                    )
+                ],
+                created=int(time.time()),
+                model=self.model_config.model_name,
+                object='chat.completion',
+                usage=usage_data
             )
-        
-        return mock_response
+            
+        except Exception as e:
+            logger.error(f"Error during streaming: {e}")
+            raise
     
     def _delete_response(self, response_id: str) -> None:
         """
@@ -183,13 +183,74 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                 sleep(10)
                 resp = self.client.responses.retrieve(resp.id)
 
-        # Delete the response after we're done with it
-        try:
-            self._delete_response(resp.id)
-        except Exception as e:
-            logger.warning(f"Error deleting response: {e}")
+            # Delete the background response after we're done with it
+            try:
+                self._delete_response(resp.id)
+            except Exception as e:
+                logger.warning(f"Error deleting response: {e}")
 
         return resp
+    
+    
+
+    def _responses_stream(self, messages: List[Dict[str, str]]) -> Any:
+        """
+        Make a streaming call to the OpenAI Responses API and return the final response.
+        """
+        logger.debug(f"Starting streaming responses for model: {self.model_config.model_name}")
+        
+        # Prepare kwargs for streaming, removing 'stream' to avoid duplication
+        stream_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k != 'stream'}
+        
+        try:
+            # Create the stream
+            stream = self.client.responses.create(
+                model=self.model_config.model_name,
+                input=messages,
+                stream=True,
+                **stream_kwargs
+            )
+            
+            # Process the stream and collect data
+            content_chunks = []
+            response_id = None
+            finish_reason = "stop"
+            usage_data = None
+            
+            for chunk in stream:
+                # Extract response ID
+                if chunk.type == 'response.created':
+                    response_id = chunk.response.id
+                
+                # Extract content deltas
+                if chunk.type == 'response.output_text.delta':
+                    content_chunks.append(chunk.delta)
+                
+                # Track finish reason
+                if hasattr(chunk, 'finish_reason') and chunk.finish_reason:
+                    finish_reason = chunk.finish_reason
+                
+                # Extract usage data
+                if hasattr(chunk, 'response') and chunk.response:
+                    usage_data = self._get_usage(chunk.response)
+            
+            # Build final response
+            final_content = ''.join(content_chunks)
+            response_id = response_id or f"stream-{int(time.time())}"
+            
+            logger.debug(f"Streaming complete. Content length: {len(final_content)}")
+            
+            return _ResponsesResponse(
+                model_name=self.model_config.model_name,
+                content=final_content,
+                usage_data=usage_data,
+                response_id=response_id,
+                finish_reason=finish_reason
+            )
+            
+        except Exception as e:
+            logger.error(f"Error during streaming: {e}")
+            raise
 
     @abc.abstractmethod
     def extract_json_from_response(self, input_response: str) -> list[list[int]] | None:
@@ -200,59 +261,72 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         pass
         
     def _get_usage(self, response: Any) -> Usage:
-        """Extract usage information from a standard OpenAI-like response object."""
-        # Implementation copied from OpenAIAdapter
-        prompt_tokens = 0
-        completion_tokens = 0
-        total_tokens = 0
-        reasoning_tokens = 0 # Default - subclasses can override if needed
-
-        if hasattr(response, 'usage') and response.usage:
-            if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
-                prompt_tokens = getattr(response.usage, 'prompt_tokens', 0)
-                completion_tokens = getattr(response.usage, 'completion_tokens', 0)
-                total_tokens = getattr(response.usage, 'total_tokens', 0)
-                # Safely access potential reasoning tokens (still needs verification based on actual Grok/updated OpenAI responses)
-                if hasattr(response.usage, 'completion_tokens_details') and response.usage.completion_tokens_details and hasattr(response.usage.completion_tokens_details, 'reasoning_tokens'):
-                    reasoning_tokens = response.usage.completion_tokens_details.reasoning_tokens or 0
+        """
+        Get the usage from the response and convert to our Usage schema.
+        Handles OpenAI ChatCompletion, Responses API, and already-converted Usage objects.
+        """
+        if not hasattr(response, 'usage') or not response.usage:
+            return Usage(
+                prompt_tokens=0,
+                completion_tokens=0, 
+                total_tokens=0,
+                completion_tokens_details=CompletionTokensDetails(
+                    reasoning_tokens=0,
+                    accepted_prediction_tokens=0,
+                    rejected_prediction_tokens=0
+                )
+            )
             
-            else: # APIType.RESPONSES (Assume this structure if not CHAT_COMPLETIONS)
-                prompt_tokens = getattr(response.usage, 'input_tokens', 0)
-                completion_tokens = getattr(response.usage, 'output_tokens', 0)
-                total_tokens = prompt_tokens + completion_tokens # Responses API doesn't always return total, calculate here
-                # Safely access potential reasoning tokens
-                if hasattr(response.usage, 'output_tokens_details') and response.usage.output_tokens_details and hasattr(response.usage.output_tokens_details, 'reasoning_tokens'):
-                    reasoning_tokens = response.usage.output_tokens_details.reasoning_tokens or 0
-
-            # ---- Infer reasoning tokens when provider does not break them out ----
-            # Note: This inference step is done *before* the main cost calculation logic below, 
-            # providing the necessary reasoning_tokens value for that logic.
-            if total_tokens and (prompt_tokens + completion_tokens) < total_tokens and reasoning_tokens == 0:
-                # Provider counted extra tokens that must correspond to reasoning
-                reasoning_tokens = total_tokens - (prompt_tokens + completion_tokens)
-            # If provider's explicit reasoning makes the sum exceed total, we keep as-is; the mismatch will be caught later.
-
-        else:
-            # Handle cases where usage might be missing (should log this appropriately)
-            print(f"Warning: Usage information missing or incomplete in response for model {self.model_config.model_name}") 
-            # Attempt basic calculation if possible (e.g., if we have token counts elsewhere)
-            # For now, just return zeros or defaults
-            pass # Keep defaults
-
+        raw_usage = response.usage
+        
+        # If it's already our custom Usage object, return it directly
+        if isinstance(raw_usage, Usage):
+            return raw_usage
+        
+        # Handle different API response types
+        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
+            # OpenAI Chat Completions API - uses CompletionUsage with prompt_tokens/completion_tokens
+            prompt_tokens = getattr(raw_usage, 'prompt_tokens', 0)
+            completion_tokens = getattr(raw_usage, 'completion_tokens', 0)
+            total_tokens = getattr(raw_usage, 'total_tokens', prompt_tokens + completion_tokens)
+            
+            # Extract reasoning tokens if available (for reasoning models like o1)
+            reasoning_tokens = 0
+            if hasattr(raw_usage, 'completion_tokens_details') and raw_usage.completion_tokens_details:
+                reasoning_tokens = getattr(raw_usage.completion_tokens_details, 'reasoning_tokens', 0)
+                
+        elif self.model_config.api_type == APIType.RESPONSES:
+            # OpenAI Responses API - uses input_tokens/output_tokens
+            prompt_tokens = getattr(raw_usage, 'input_tokens', 0)
+            completion_tokens = getattr(raw_usage, 'output_tokens', 0)
+            total_tokens = getattr(raw_usage, 'total_tokens', prompt_tokens + completion_tokens)
+            
+            # Extract reasoning tokens for responses API
+            reasoning_tokens = 0
+            if hasattr(raw_usage, 'output_tokens_details') and raw_usage.output_tokens_details:
+                reasoning_tokens = getattr(raw_usage.output_tokens_details, 'reasoning_tokens', 0)
+                
+        
+        # If no explicit reasoning tokens but total > prompt + completion, infer reasoning
+        if reasoning_tokens == 0 and total_tokens > (prompt_tokens + completion_tokens):
+            reasoning_tokens = total_tokens - (prompt_tokens + completion_tokens)
+        
+        # Create our standardized Usage object
         return Usage(
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
             completion_tokens_details=CompletionTokensDetails(
                 reasoning_tokens=reasoning_tokens,
-                # Assume all completion tokens are accepted/rejected for now unless overridden
                 accepted_prediction_tokens=completion_tokens,
-                rejected_prediction_tokens=0,
-            ),
+                rejected_prediction_tokens=0
+            )
         )
 
-    def _get_reasoning_summary(self, response: Any) -> Optional[str]:
-        """Extract reasoning summary from the response if available (primarily for Responses API)."""
+    def _get_reasoning_summary(self, response: Any) -> Optional[List[Dict[str, Any]]]:
+        """
+        Extract reasoning summary from the response if available (primarily for Responses API).
+        """
         reasoning_summary = None
         if self.model_config.api_type == APIType.RESPONSES:
             # Safely access potential reasoning summary
@@ -262,19 +336,19 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         return reasoning_summary
 
     def _get_content(self, response: Any) -> str:
-        """Extract content from a standard OpenAI-like response object."""
-        # Implementation copied from OpenAIAdapter
-        content = ""
-        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
-            if hasattr(response, 'choices') and response.choices and hasattr(response.choices[0], 'message'):
-                content = getattr(response.choices[0].message, 'content', "") or ""
-        else: # APIType.RESPONSES
-            # Check standard attribute first
-            content = getattr(response, 'output_text', "")
-            # Fallback: Sometimes it might be in a 'choices' structure even for non-chat
-            if not content and hasattr(response, 'choices') and response.choices and hasattr(response.choices[0], 'text'):
-                 content = getattr(response.choices[0], 'text', "") or ""
+        """
+        Get the content from the response
+        """
+        api_type = self.model_config.api_type
+        if api_type == APIType.CHAT_COMPLETIONS:
+            content = response.choices[0].message.content or ""
+        else:  # APIType.RESPONSES
+            content = getattr(response, "output_text", "")
+            if not content and getattr(response, "output", None):
+                # Fallback to first text block
+                content = response.output[0].content[0].text or ""
         return content.strip()
+
 
     def _get_role(self, response: Any) -> str:
         """Extract role from a standard OpenAI-like response object."""
@@ -305,8 +379,9 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         pt_raw = usage.prompt_tokens
         ct_raw = usage.completion_tokens
         tt_raw = usage.total_tokens or 0
-        rt_explicit = getattr(usage.completion_tokens_details, "reasoning_tokens", 0) or 0
+        rt_explicit = usage.completion_tokens_details.reasoning_tokens if usage.completion_tokens_details else 0
 
+        # For OpenAI, we assume the raw tokens are correct and can be used directly for billing.
         # Determine effective token counts for cost calculation based on the two cases
         prompt_tokens_for_cost = pt_raw
         completion_tokens_for_cost = 0
@@ -351,7 +426,6 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         # Total cost is the sum of all components
         total_cost = prompt_cost + completion_cost + reasoning_cost
 
-        from arc_agi_benchmarking.schemas import Cost  # Local import (avoids circular issues in some environments)
         return Cost(
             prompt_cost=prompt_cost,
             completion_cost=completion_cost, # Cost of 'actual' completion
