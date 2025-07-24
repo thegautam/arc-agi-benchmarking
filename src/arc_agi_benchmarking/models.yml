@@ -798,3 +798,25 @@ models:
       date: "2025-07-09"
       input: 0.30
       output: 0.50
+
+########################
+###### Moonshot ########
+########################
+
+  - name: "qwen3-235b-a22b-07-25"
+    model_name: "qwen/qwen3-235b-a22b-07-25"
+    provider: "openrouter"
+    max_tokens: 100000
+    pricing:
+      date: "2025-07-21"
+      input: 0.12
+      output: 0.59
+
+  - name: "qwen3-235b-a22b-instruct-2507"
+    model_name: "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"
+    provider: "fireworks"
+    max_tokens: 100000
+    pricing:
+      date: "2025-07-21"
+      input: 0.12
+      output: 0.59
