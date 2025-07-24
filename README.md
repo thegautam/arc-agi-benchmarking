@@ -177,26 +177,26 @@ python cli/main.py validate data/arc-agi/data/evaluation submissions/claude_sonn
 Upload a single model's outputs to a task set repository:
 ```bash
 # Basic upload (private repository)
-python cli/main.py upload submissions/open_ai_o1_high_20241217 --task-set public_eval_v1
+python cli/submission_cli.py upload submissions/open_ai_o1_high_20241217 --task-set public_eval_v1
 
 # Upload to a different organization
-python cli/main.py upload submissions/claude_sonnet_20241022 --task-set public_eval_v1 --org your-org-name
+python cli/submission_cli.py upload submissions/claude_sonnet_20241022 --task-set public_eval_v1 --org your-org-name
 
 # Create a public repository
-python cli/main.py upload submissions/deepseek_v3 --task-set public_eval_v1 --public
+python cli/submission_cli.py upload <path to your submissions> --task-set arc_agi_v2_public_eval --model-name <model_name> --public
 ```
 
 #### Bulk Upload
 Upload multiple model outputs at once:
 ```bash
 # Upload all models in submissions directory (private repository)
-python cli/main.py bulk-upload submissions/ --task-set public_eval_v1
+python cli/submission_cli.py bulk-upload submissions/ --task-set public_eval_v1
 
 # Upload to a different organization
-python cli/main.py bulk-upload submissions/ --task-set public_eval_v1 --org your-org-name
+python cli/submission_cli.py bulk-upload submissions/ --task-set public_eval_v1 --org your-org-name
 
 # Create a public repository
-python cli/main.py bulk-upload submissions/ --task-set public_eval_v1 --public
+python cli/submission_cli.py bulk-upload submissions/ --task-set public_eval_v1 --public
 ```
 
 Notes:
@@ -236,18 +236,18 @@ task_set_name/
 
 To upload model outputs:
 ```bash
-python cli/main.py upload submissions/model_name --task-set task_set_name [--org organization] [--public]
+python cli/submission_cli.py upload submissions/model_name --task-set task_set_name [--org organization] [--public] [--model-name model_name]
 ```
 
 For example:
 ```bash
-python cli/main.py upload submissions/open_ai_o1_high_20241217 --task-set public_eval_v1
+python cli/submission_cli.py upload submissions/open_ai_o1_high_20241217 --task-set public_eval_v1
 ```
 
 #### Bulk Upload
 To upload multiple model outputs at once:
 ```bash
-python cli/main.py bulk-upload submissions/ --task-set task_set_name [--org organization] [--public]
+python cli/submission_cli.py bulk-upload submissions/ --task-set task_set_name [--org organization] [--public]
 ```
 ## Contributing: Testing Providers
 

@@ -70,15 +70,17 @@ def validate(task_dir, output_dir):
 
 @cli.command()
 @click.argument('output_dir', type=click.Path(exists=True))
+@click.option('--model-name', type=str, help="Name of the model. If not provided, it will be the name of the output directory.")
 @click.option('--task-set', type=str, required=True, help="Name of task set (e.g. public_eval_v1)")
 @click.option('--org', type=str, default="arcprize", help="Hugging Face organization name")
 @click.option('--public/--private', default=False, help="Make dataset public (default: private)")
-def upload(output_dir, task_set, org, public):
+def upload(output_dir, model_name, task_set, org, public):
     """Upload model outputs to Hugging Face dataset."""
     click.echo(f"Starting upload...")
     
     output_path = Path(output_dir)
-    model_name = output_path.name
+    if not model_name:
+        model_name = output_path.name
     
     # Format repo name based on task set and org
     repo_id = f"{org}/{task_set}"
