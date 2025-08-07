@@ -5,13 +5,174 @@ models:
 #### OpenAI ####
 ################
 
+  - name: "gpt-5-2025-08-07-high"
+    model_name: "gpt-5-2025-08-07"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "high"
+      summary: "auto"
+    stream: true
+    max_completion_tokens: 200000
+    pricing:
+      date: "2025-08-07"
+      input: 1.25
+      output: 10.00
+
+  - name: "gpt-5-2025-08-07-medium"
+    model_name: "gpt-5-2025-08-07"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "medium"
+      summary: "auto"
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-08-07"
+      input: 1.25
+      output: 10.00
+
+  - name: "gpt-5-2025-08-07-low"
+    model_name: "gpt-5-2025-08-07"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "low"
+      summary: "auto"
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-08-07"
+      input: 1.25
+      output: 10.00
+
+  - name: "gpt-5-2025-08-07-minimal"
+    model_name: "gpt-5-2025-08-07"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "minimal"
+      summary: "auto"
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-08-07"
+      input: 1.25
+      output: 10.00
+
+  - name: "gpt-5-mini-2025-08-07-high"
+    model_name: "gpt-5-mini-2025-08-07"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "high"
+      summary: "auto"
+    stream: true
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-08-07"
+      input: 0.25
+      output: 2.00
+
+  - name: "gpt-5-mini-2025-08-07-medium"
+    model_name: "gpt-5-mini-2025-08-07"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "medium"
+      summary: "auto"
+    stream: true
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-08-07"
+      input: 0.25
+      output: 2.00
+
+  - name: "gpt-5-mini-2025-08-07-low"
+    model_name: "gpt-5-mini-2025-08-07"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "low"
+      summary: "auto"
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-08-07"
+      input: 0.25
+      output: 2.00
+
+  - name: "gpt-5-mini-2025-08-07-minimal"
+    model_name: "gpt-5-mini-2025-08-07"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "minimal"
+      summary: "auto"
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-08-07"
+      input: 0.25
+      output: 2.00
+
+  - name: "gpt-5-nano-2025-08-07-high"
+    model_name: "gpt-5-nano-2025-08-07"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "high"
+      summary: "auto"
+    stream: true
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-08-07"
+      input: 0.05
+      output: 0.40
+  
+  - name: "gpt-5-nano-2025-08-07-medium"
+    model_name: "gpt-5-nano-2025-08-07"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "medium"
+      summary: "auto"
+    stream: true
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-08-07"
+      input: 0.05
+      output: 0.40
+
+  - name: "gpt-5-nano-2025-08-07-low"
+    model_name: "gpt-5-nano-2025-08-07"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "low"
+      summary: "auto"
+    stream: true
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-08-07"
+      input: 0.05
+      output: 0.40
+
+  - name: "gpt-5-nano-2025-08-07-minimal"
+    model_name: "gpt-5-nano-2025-08-07"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "minimal"
+      summary: "auto"
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-08-07"
+      input: 0.05
+      output: 0.40
+
   - name: "o3-pro-2025-06-10-high"
     model_name: "o3-pro-2025-06-10"
     provider: "openai"
     api_type: "responses"
     reasoning:
       effort: "high"
-      # summary: "auto"
     background: true
     max_completion_tokens: 100000
     pricing:
@@ -25,7 +186,6 @@ models:
     api_type: "responses"
     reasoning:
       effort: "medium"
-      # summary: "auto"
     background: true
     max_completion_tokens: 100000
     pricing:
@@ -39,7 +199,6 @@ models:
     api_type: "responses"
     reasoning:
       effort: "low"
-      # summary: "auto"
     background: true
     max_completion_tokens: 100000
     pricing:
