@@ -2,6 +2,7 @@ import json
 import os
 from arc_agi_benchmarking.schemas import ARCPair
 from typing import List
+from .scene_builder import build_scene_description, describe_grid
 
 def _load_prompt(prompt_name: str) -> str:
     """
@@ -17,18 +18,26 @@ def _load_prompt(prompt_name: str) -> str:
 
 def convert_task_pairs_to_prompt(training_pairs: List[ARCPair], test_input: ARCPair) -> str:
     """
-    Convert the training pairs to a prompt
+    Convert the training pairs to a prompt with scene descriptions
     """
-
     prompt_template = _load_prompt("simple_coding_prompt")
 
     training_examples = ""
     for i, pair in enumerate(training_pairs):
-        training_examples += f"--Example {i}-- \n\n INPUT: \n\n"
+        # Add scene description
+        scene_desc = build_scene_description(pair.input, pair.output)
+        
+        training_examples += f"--Example {i}-- \n\n"
+        training_examples += f"{scene_desc}\n\n"
+        training_examples += "INPUT:\n\n"
         training_examples += json.dumps(pair.input) + "\n\n"
-        training_examples += f"OUTPUT: \n\n"
+        training_examples += "OUTPUT:\n\n"
         training_examples += json.dumps(pair.output) + "\n\n"
 
     test_input_str = json.dumps(test_input.input)
+    test_scene = describe_grid(test_input.input, "test input")
 
-    return prompt_template.format(training_examples=training_examples, test_input=test_input_str)
+    return prompt_template.format(
+        training_examples=training_examples,
+        test_input=f"{test_scene}\n\n{test_input_str}"
+    )

@@ -9,13 +9,14 @@ MODEL_CONFIG="gpt-5-mini-2025-08-07-low"
 DATA_DIR="data/arc-agi/data/training"
 OUTPUT_DIR="training_results"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-LOG_FILE="training_run_${TIMESTAMP}.log"
+LOG_FILE="logs/training_run_${TIMESTAMP}.log"
 
 # Create output directory
 mkdir -p "$OUTPUT_DIR"
+mkdir -p "logs"
 
 # Initialize results file
-echo "Task ID,Score,Cost,Attempts,Output Tokens,Duration,Visualization" > "${OUTPUT_DIR}/results_summary.csv"
+echo "Task ID,Score,Cost,Attempts,Output Tokens,Duration" > "${OUTPUT_DIR}/results_summary.csv"
 
 # Function to run a single task
 run_task() {
@@ -27,21 +28,21 @@ run_task() {
     echo "==================================================" | tee -a "$LOG_FILE"
     
     # Create task directory
-    mkdir -p "${task_dir}/submissions"
+    mkdir -p "${task_dir}"
     
     # Run the task
     python main.py \
         --task_id "$task_id" \
         --config "$MODEL_CONFIG" \
         --data_dir "$DATA_DIR" \
-        --save_submission_dir "${task_dir}/submissions" \
+        --save_submission_dir "${task_dir}" \
         --print_submission \
         --log-level INFO 2>&1 | tee -a "$LOG_FILE"
     
     # Score the task
     python -m src.arc_agi_benchmarking.scoring.scoring \
         --task_dir "$DATA_DIR" \
-        --submission_dir "${task_dir}/submissions" \
+        --submission_dir "${task_dir}" \
         --results_dir "$task_dir" \
         --print_logs 2>&1 | tee -a "$LOG_FILE"
     
@@ -49,8 +50,8 @@ run_task() {
     python visualize_all.py \
         --task_id "$task_id" \
         --data_dir "$DATA_DIR" \
-        --submission_dir "${task_dir}/submissions" \
-        --output_dir "${task_dir}/visualizations" 2>&1 | tee -a "$LOG_FILE"
+        --submission_dir "${task_dir}" \
+        --output_dir "${task_dir}" 2>&1 | tee -a "$LOG_FILE"
        
     # Extract results
     local score_file="${task_dir}/results.json"
@@ -62,7 +63,7 @@ run_task() {
         local duration=$(jq -r '.avg_duration_per_task' "$score_file" 2>/dev/null || echo "0")
         
         # Append to summary
-        echo "\"$task_id\",$score,$cost,$attempts,$tokens,$duration,visualizations/training/${task_id}_all.png" >> "${OUTPUT_DIR}/results_summary.csv"
+        echo "\"$task_id\",$score,$cost,$attempts,$tokens,$duration" >> "${OUTPUT_DIR}/results_summary.csv"
     fi
 }
 
@@ -95,4 +96,3 @@ echo "Detailed results saved to:" | tee -a "$LOG_FILE"
 echo "- Log file: $LOG_FILE" | tee -a "$LOG_FILE"
 echo "- Results summary: ${OUTPUT_DIR}/results_summary.csv" | tee -a "$LOG_FILE"
 echo "- Task directories: ${OUTPUT_DIR}/<task_id>/" | tee -a "$LOG_FILE"
-echo "- Visualizations: visualizations/training/" | tee -a "$LOG_FILE"

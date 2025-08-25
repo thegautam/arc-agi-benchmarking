@@ -125,34 +125,67 @@ def extract_from_json_response(log_str: str) -> Optional[List[List[int]]]:
 
 # --- Main Parsing Orchestrator ---
 
-def parse_and_validate_json(response: str) -> Optional[List[List[int]]]:
+def parse_and_validate_json(response: str) -> List[List[int]]:
     """
     Orchestrates parsing by trying the provider extractor.
     Returns the parsed List[List[int]] or raises ValueError if validation fails.
     """
-    parsing_attempts = [
-        extract_from_json_response,  # Try this first as it's the most specific
-        extract_from_boxed,
-        backscan_json_parser
-    ]
-
-    for parser in parsing_attempts:
-        result = parser(response)
-        if result is not None:
-            # Validate the structure: must be list of lists
-            if isinstance(result, list) and all(isinstance(row, list) for row in result):
-                return result # Return immediately on first success and validation
-            else:
-                # Raise error if structure is invalid, triggering retry in main loop
-                raise ValueError(f"Parser {parser.__name__} produced invalid structure: {result!r}")
-
-    # Raise an error here if no method works, triggering retry in main loop
-    raise ValueError(f"Failed to parse response after all attempts: {response!r}")
+    # Clean up the response string first
+    cleaned_response = response.strip()
+    
+    # List of parser functions to try in order
+    parsers = [extract_from_json_response, backscan_json_parser, extract_from_boxed]
+    
+    # Try parsing as JSON first
+    try:
+        # Try to parse the entire string as JSON
+        data = json.loads(cleaned_response)
+        if isinstance(data, dict) and "output" in data:
+            output = data["output"]
+            # Handle case where output is a string representation of a list
+            if isinstance(output, str):
+                try:
+                    output = json.loads(output)
+                except json.JSONDecodeError:
+                    # Try to extract list from string using regex if direct parsing fails
+                    match = re.search(r'\[\s*\[.*\]\s*(?:,\s*\[.*\]\s*)*\]', output, re.DOTALL)
+                    if match:
+                        output = json.loads(match.group(0))
+            
+            if isinstance(output, list) and all(isinstance(row, list) for row in output):
+                return output
+            elif isinstance(output, list) and all(isinstance(x, (int, float)) for x in output):
+                return [output]  # Convert single list to list of lists
+    except json.JSONDecodeError:
+        pass  # Fall through to other parsers
+    
+    # If direct parsing fails, try the parsers
+    for parser in parsers:
+        try:
+            result = parser(cleaned_response)
+            if result is not None:
+                # Validate the structure: must be list of lists
+                if isinstance(result, list):
+                    if all(isinstance(row, list) for row in result):
+                        return result
+                    elif all(isinstance(x, (int, float)) for x in result):
+                        return [result]  # Convert single list to list of lists
+        except (json.JSONDecodeError, ValueError) as e:
+            continue
+    
+    # If we get here, all parsing attempts failed
+    raise ValueError(f"Failed to parse response after all attempts: {response[:200]}...")
 
 if __name__ == "__main__":
+    response0 = '{\n    "explanation": "Find the single cell with value 8 and the single cell with value 7. Fill the entire row and entire column of the 8 with 8s, and fill the entire row and entire column of the 7 with 7s. When the row of one number intersects the column of the other, place a 2 at that intersection (overriding 7 or 8). All other cells remain 0.",\n    "code": "def transform(grid):\\n    n = len(grid)\\n    # locate 8 and 7\\n    pos8 = pos7 = None\\n    for i in range(n):\\n        for j in range(n):\\n            if grid[i][j] == 8:\\n                pos8 = (i,j)\\n            if grid[i][j] == 7:\\n                pos7 = (i,j)\\n    out = [[0]*n for _ in range(n)]\\n    if pos8:\\n        r8,c8 = pos8\\n        # fill row and column with 8\\n        for j in range(n): out[r8][j] = 8\\n        for i in range(n): out[i][c8] = 8\\n    if pos7:\\n        r7,c7 = pos7\\n        # fill row and column with 7\\n        for j in range(n): out[r7][j] = 7\\n        for i in range(n): out[i][c7] = 7\\n    # intersections: row of 8 with column of 7, and row of 7 with column of 8 set to 2\\n    if pos8 and pos7:\\n        r8,c8 = pos8\\n        r7,c7 = pos7\\n        out[r8][c7] = 2\\n        out[r7][c8] = 2\\n    return out\\n\\n# Run on training examples to verify\\ntrain0 = [[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,8,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,7,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0]]\\ntrain1 = [[0,0,0,0,0,0,0,0,0],[0,0,0,8,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,7,0,0],[0,0,0,0,0,0,0,0,0]]\\nprint(transform(train0))\\nprint(transform(train1))\\n\\n# Run on test input\\ntest = [[0,0,0,0,0,0,0,0,0],[0,0,0,0,8,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,7,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0]]\\nresult = transform(test)\\nprint(result)\\n",\n    "output": [[0, 0, 0, 0, 8, 0, 0, 0, 0], [0, 2, 8, 8, 2, 8, 7, 8, 8], [0, 0, 0, 0, 8, 0, 0, 0, 0], [0, 0, 0, 0, 8, 0, 0, 0, 0], [0, 0, 0, 0, 8, 0, 0, 0, 0], [0, 0, 0, 0, 8, 0, 0, 0, 0], [7, 7, 7, 7, 2, 7, 7, 7, 7], [0, 0, 0, 0, 8, 0, 0, 0, 0], [0, 0, 0, 0, 8, 0, 0, 0, 0]]\n}'
+    print(parse_and_validate_json(response0))
+
     response1 = """### Summary and Final Answer:\nThe pattern transforms the input, which consists of two lists, into six lists in the output. Each of the first four output lists is constructed by repeating the original or reversed input lists three times. The fifth and sixth output lists are repetitions of the first and second output lists, respectively.\n\nFor the test input `[[3, 2], [7, 8]]`:\n1. The first input list `[3, 2]` is repeated three times to form the first output list.\n2. The second input list `[7, 8]` is repeated three times to form the second output list.\n3. The reversed first input list `[2, 3]` is repeated three times to form the third output list.\n4. The reversed second input list `[8, 7]` is repeated three times to form the fourth output list.\n5. The first output list is repeated as the fifth output list.\n6. The second output list is repeated as the sixth output list.\n\nThus, the output is:\n\n```python\n[[3, 2, 3, 2, 3, 2], [7, 8, 7, 8, 7, 8], [2, 3, 2, 3, 2, 3], [8, 7, 8, 7, 8, 7], [3, 2, 3, 2, 3, 2], [7, 8, 7, 8, 7, 8]]\n```\n\nFinal answer (formatted to match the training output style):\n\n```python\n[[3, 2, 3, 2, 3, 2], [7, 8, 7, 8, 7, 8], [2, 3, 2, 3, 2, 3], [8, 7, 8, 7, 8, 7], [3, 2, 3, 2, 3, 2], [7, 8, 7, 8, 7, 8]]\n```\n\n\\boxed{[[3, 2, 3, 2, 3, 2], [7, 8, 7, 8, 7, 8], [2, 3, 2, 3, 2, 3], [8, 7, 8, 7, 8, 7], [3, 2, 3, 2, 3, 2], [7, 8, 7, 8, 7, 8]]}'
 """
     print(parse_and_validate_json(response1))
 
     response2 = '{\n    "explanation": "Each input row contains exactly one 5 and two 0s. The output row\'s elements are all equal to a number determined by the position (index) of the 5 in that input row: if the 5 is at index 0 -> output value 2; index 1 -> 4; index 2 -> 3. So we transform each row into a uniform row [v,v,v] where v depends on where the 5 sits in that row.",\n    "code": "def transform(grid):\\n    mapping = {0:2, 1:4, 2:3}\\n    out = []\\n    for row in grid:\\n        # find index of the 5\\n        idx = row.index(5)\\n        val = mapping[idx]\\n        out.append([val, val, val])\\n    return out\\n\\n# Test on training examples\\ntrain = [\\n    ([[0,0,5],[0,5,0],[5,0,0]], [[3,3,3],[4,4,4],[2,2,2]]),\\n    ([[0,0,5],[0,0,5],[0,0,5]], [[3,3,3],[3,3,3],[3,3,3]]),\\n    ([[5,0,0],[0,5,0],[5,0,0]], [[2,2,2],[4,4,4],[2,2,2]]),\\n    ([[0,5,0],[0,0,5],[0,5,0]], [[4,4,4],[3,3,3],[4,4,4]])\\n]\\nfor inp, expected in train:\\n    out = transform(inp)\\n    assert out == expected, (inp, out, expected)\\n\\n# Run on test input\\ntest_input = [[0,0,5],[5,0,0],[0,5,0]]\\nresult = transform(test_input)\\nprint(result)\\n",\n    "output": "[[3, 3, 3], [2, 2, 2], [4, 4, 4]]"\n}'
     print(parse_and_validate_json(response2))
+
+    response3 = '{\n    "explanation": "In the training pairs, every time two 1s appear in the same row with exactly one cell between them (pattern 1,0,1 horizontally), the middle 0 is changed to 2. No vertical or diagonal changes occur. The code scans each row and whenever grid[r][c]==1 and grid[r][c+2]==1 and the middle cell is 0, it sets that middle cell to 2. The same transformation is applied to the test input.",\n    "code": "def transform(grid):\\n    H = len(grid)\\n    W = len(grid[0])\\n    out = [row[:] for row in grid]\\n    for r in range(H):\\n        for c in range(W-2):\\n            if grid[r][c] == 1 and grid[r][c+2] == 1 and grid[r][c+1] == 0:\\n                out[r][c+1] = 2\\n    return out\\n\\n# Run on training examples to verify (omitted here) and on test input:\\ninput_grid = [[0, 1, 0, 1, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 1, 0, 1, 0, 1, 0, 1, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 0, 1, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 1, 0, 1, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 1, 0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]\\noutput_grid = transform(input_grid)\\nprint(output_grid)",\n    "output": [[0, 1, 2, 1, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 1, 2, 1, 2, 1, 2, 1, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 2, 1, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 1, 2, 1, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 1, 2, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]\n}'
+    print(parse_and_validate_json(response3))
