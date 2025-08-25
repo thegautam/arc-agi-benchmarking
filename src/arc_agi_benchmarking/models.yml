@@ -105,7 +105,6 @@ models:
     api_type: "responses"
     reasoning:
       effort: "minimal"
-      summary: "auto"
     max_completion_tokens: 100000
     pricing:
       date: "2025-08-07"
