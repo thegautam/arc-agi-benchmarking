@@ -179,6 +179,4 @@ analyze_submission_times.py
 .cursorignore
 *local*
 .claude
-training_results/
-evaluation_results/
-visualizations/
+results/

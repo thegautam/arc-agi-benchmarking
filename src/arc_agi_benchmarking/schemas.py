@@ -172,21 +172,25 @@ class TestPairAttempts(BaseModel):
         Convert dictionary of attempts with keys like 'attempt_1', 'attempt_2' to a list of attempts
         (one for each pair) if the attempts field is a dictionary.
         """
+        # If the raw input is a bare list, treat it as the attempts list
         if isinstance(values, list):
+            return {"attempts": values}
+
+        if isinstance(values, dict):
+            # If an explicit attempts list is already provided, preserve it
+            if isinstance(values.get('attempts'), list):
+                return values
+
+            # Otherwise, look for flattened keys 'attempt_1', 'attempt_2', ... and convert
+            attempt_keys = [k for k in values.keys() if isinstance(k, str) and k.startswith('attempt_')]
+            if attempt_keys:
+                attempt_list = []
+                for key in sorted(attempt_keys):
+                    attempt_list.append(values[key])
+                values['attempts'] = attempt_list
             return values
-            
-        attempts = values
-        if isinstance(attempts, dict):
-            # Check if keys follow the pattern 'attempt_X'
-            attempt_list = []
-            # Sort keys to ensure correct order (attempt_1, attempt_2, etc.)
-            for key in sorted(attempts.keys()):
-                if key.startswith('attempt_'):
-                    attempt_list.append(attempts[key])
-            
-            values['attempts'] = attempt_list
-        
-            
+
+        # Fallback: return as-is (pydantic may error if unsupported)
         return values
     
     def __getitem__(self, index):
