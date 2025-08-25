@@ -2,16 +2,17 @@
 
 # Configuration
 TASKS=(
-    "a85d4709" "c8cbb738" "8e1813be" "a699fb00" "5c2c9af4"
-    "44f52bb0" "23581191" "94f9d214" "f9012d9b" "4258a5f9"
+    # Add your evaluation task IDs here
+    # Example: "task1" "task2" "task3"
+    # These should be the task IDs from the evaluation set
 )
-MODEL_CONFIG="gpt-5-mini-2025-08-07-low"
-DATA_DIR="data/arc-agi/data/training"
-OUTPUT_DIR="training_results"
+MODEL_CONFIG="gpt-5-mini-2025-08-07-low"  # Or your preferred model config
+DATA_DIR="data/arc-agi/data/evaluation"
+OUTPUT_DIR="evaluation_results"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-LOG_FILE="logs/training_run_${TIMESTAMP}.log"
+LOG_FILE="logs/evaluation_run_${TIMESTAMP}.log"
 
-# Create output directory
+# Create output and logs directories
 mkdir -p "$OUTPUT_DIR"
 mkdir -p "logs"
 
@@ -24,7 +25,7 @@ run_task() {
     local task_dir="${OUTPUT_DIR}/${task_id}"
     
     echo "==================================================" | tee -a "$LOG_FILE"
-    echo "Running task: $task_id" | tee -a "$LOG_FILE"
+    echo "Running evaluation task: $task_id" | tee -a "$LOG_FILE"
     echo "==================================================" | tee -a "$LOG_FILE"
     
     # Create task directory
@@ -38,15 +39,15 @@ run_task() {
         --save_submission_dir "${task_dir}" \
         --print_submission \
         --log-level INFO 2>&1 | tee -a "$LOG_FILE"
-       
-    # Score the task
+    
+    # Score the submission
     python -m src.arc_agi_benchmarking.scoring.scoring \
         --task_dir "$DATA_DIR" \
         --submission_dir "${task_dir}" \
         --results_dir "$task_dir" \
-        --print_logs 2>&1 | tee -a "$LOG_FILE" 
-   
-    # Visualize the results
+        --print_logs 2>&1 | tee -a "$LOG_FILE"
+    
+    # Generate visualizations
     python visualize_all.py \
         --task_id "$task_id" \
         --data_dir "$DATA_DIR" \
@@ -59,7 +60,7 @@ run_task() {
         local score=$(jq -r '.score' "$score_file" 2>/dev/null || echo "0")
         local cost=$(jq -r '.total_cost' "$score_file" 2>/dev/null || echo "0")
         local attempts=$(jq -r '.total_attempts' "$score_file" 2>/dev/null || echo "0")
-        local tokens=$(jq -r '.avg_output_tokens_per_task' "$score_file" 2>/dev/null || echo "0")
+        local tokens=$(jq -r '.total_output_tokens' "$score_file" 2>/dev/null || echo "0")
         local duration=$(jq -r '.avg_duration_per_task' "$score_file" 2>/dev/null || echo "0")
         
         # Append to summary
@@ -67,39 +68,34 @@ run_task() {
     fi
 }
 
-# Install jq if not present
-if ! command -v jq &> /dev/null; then
-    echo "jq not found. Installing jq..." | tee -a "$LOG_FILE"
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        brew install jq
-    else
-        sudo apt-get update && sudo apt-get install -y jq
+# Check if specific task IDs are provided as arguments
+if [ $# -gt 0 ]; then
+    TASKS=("$@")
+    echo "Running specific tasks: ${TASKS[*]}" | tee -a "$LOG_FILE"
+    # Ensure task IDs don't include .json extension
+    TASKS=("${TASKS[@]%.json}")
+elif [ ${#TASKS[@]} -eq 0 ]; then
+    # If no tasks are specified, find all JSON files in the evaluation directory
+    echo "No tasks specified, finding all tasks in $DATA_DIR" | tee -a "$LOG_FILE"
+    TASKS=($(find "$DATA_DIR" -maxdepth 1 -type f -name "*.json" -exec basename {} .json \; | sort))
+    
+    if [ ${#TASKS[@]} -eq 0 ]; then
+        echo "No task files found in $DATA_DIR" | tee -a "$LOG_FILE"
+        exit 1
     fi
+    
+    echo "Found ${#TASKS[@]} tasks to run" | tee -a "$LOG_FILE"
 fi
 
 # Run all tasks
-for task in "${TASKS[@]}"; do
-    run_task "$task"
+for task_id in "${TASKS[@]}"; do
+    run_task "$task_id"
 done
 
-# Score everything
-python -m src.arc_agi_benchmarking.scoring.scoring \
-    --task_dir "$DATA_DIR" \
-    --submission_dir "$OUTPUT_DIR" \
-    --results_dir "$task_dir" \
-    --print_logs 2>&1 | tee -a "$LOG_FILE"
-
 # Print summary
-echo ""
+echo "" | tee -a "$LOG_FILE"
 echo "==================================================" | tee -a "$LOG_FILE"
-echo "Training Run Summary" | tee -a "$LOG_FILE"
-echo "==================================================" | tee -a "$LOG_FILE"
-echo "Model: $MODEL_CONFIG" | tee -a "$LOG_FILE"
-echo "Tasks completed: $(($(wc -l < "${OUTPUT_DIR}/results_summary.csv") - 1))" | tee -a "$LOG_FILE"
-echo "Total cost: $(awk -F, 'NR>1 {sum+=$3} END {print sum}' "${OUTPUT_DIR}/results_summary.csv" 2>/dev/null || echo "0")" | tee -a "$LOG_FILE"
-echo "Average score: $(awk -F, 'NR>1 {sum+=$2; count++} END {if(count>0) printf "%.2f%%", sum/count*100; else printf "0%%"}' "${OUTPUT_DIR}/results_summary.csv" 2>/dev/null)" | tee -a "$LOG_FILE"
-echo "==================================================" | tee -a "$LOG_FILE"
-echo "Detailed results saved to:" | tee -a "$LOG_FILE"
+echo "Evaluation completed!" | tee -a "$LOG_FILE"
 echo "- Log file: $LOG_FILE" | tee -a "$LOG_FILE"
 echo "- Results summary: ${OUTPUT_DIR}/results_summary.csv" | tee -a "$LOG_FILE"
 echo "- Task directories: ${OUTPUT_DIR}/<task_id>/" | tee -a "$LOG_FILE"

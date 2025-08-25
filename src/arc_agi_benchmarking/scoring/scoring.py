@@ -148,7 +148,7 @@ class ARCScorer:
         total_tasks = 0
         task_results = {}
 
-        for submission_file in self.submission_dir.glob('*.json'):
+        for submission_file in self.submission_dir.glob('**/*.json'):
             if submission_file.name == 'results.json':
                 continue
 
