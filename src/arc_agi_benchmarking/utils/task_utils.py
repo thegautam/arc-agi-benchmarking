@@ -111,6 +111,36 @@ def read_models_config(config: str) -> ModelConfig:
             
     raise ValueError(f"No matching configuration found for '{config}'")
 
+def is_submission_correct(submission: list, data_dir: str, task_id: str) -> bool:
+    """
+    Check if a submission matches the expected output for a task.
+    
+    Args:
+        submission: The submission to check (list of attempts)
+        data_dir: Directory containing the task data
+        task_id: ID of the task
+        
+    Returns:
+        bool: True if the submission is correct, False otherwise
+    """
+    if not submission or not isinstance(submission, list):
+        return False
+        
+    # Get the test pairs to verify against
+    test_pairs = get_test_input_from_task(data_dir, task_id)
+    if not test_pairs:
+        return False
+        
+    # Get the most recent non-empty attempt
+    for attempt in reversed(submission):
+        if attempt.get('answer') and isinstance(attempt['answer'], list):
+            # Check if the answer matches any of the test outputs
+            for test_pair in test_pairs:
+                if hasattr(test_pair, 'output') and attempt['answer'] == test_pair.output:
+                    return True
+    return False
+
+
 def read_provider_rate_limits() -> dict:
     """
     Reads and parses the provider_config.yml file to get rate limit configurations.

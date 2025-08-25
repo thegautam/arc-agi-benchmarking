@@ -5,7 +5,7 @@ TASKS=(
     "a85d4709" "c8cbb738" "8e1813be" "a699fb00" "5c2c9af4"
     "44f52bb0" "23581191" "94f9d214" "f9012d9b" "4258a5f9"
 )
-MODEL_CONFIG="gpt-5-mini-2025-08-07-minimal"
+MODEL_CONFIG="gpt-5-mini-2025-08-07-low"
 DATA_DIR="data/arc-agi/data/training"
 OUTPUT_DIR="training_results"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -28,7 +28,6 @@ run_task() {
     
     # Create task directory
     mkdir -p "${task_dir}/submissions"
-    mkdir -p "${task_dir}/visualizations"
     
     # Run the task
     python main.py \
@@ -52,11 +51,7 @@ run_task() {
         --data_dir "$DATA_DIR" \
         --submission_dir "${task_dir}/submissions" \
         --output_dir "${task_dir}/visualizations" 2>&1 | tee -a "$LOG_FILE"
-    
-    # Copy visualization to main visualizations directory
-    mkdir -p "visualizations/training"
-    cp "${task_dir}/visualizations/${task_id}_all.png" "visualizations/training/" 2>/dev/null || true
-    
+       
     # Extract results
     local score_file="${task_dir}/results.json"
     if [ -f "$score_file" ]; then

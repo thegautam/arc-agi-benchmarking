@@ -151,9 +151,21 @@ class ARCTester:
         logger.info(f"Using model_config: {test_id} for task_id: {task_id}")
 
         # Logic for overwrite. If save_submission_dir is provided, check if the submission already exists
-        if self.save_submission_dir and utils.submission_exists(self.save_submission_dir, task_id) and not self.overwrite_submission:
-            logger.info(f"Submission for task {task_id} using {test_id} already exists, skipping")
-            return
+        if self.save_submission_dir:
+            submission_file = os.path.join(self.save_submission_dir, f"{task_id}.json")
+            if os.path.exists(submission_file):
+                with open(submission_file, "r") as f:
+                    existing_submission = json.load(f)
+
+                # Check if the existing submission is correct
+                if utils.is_submission_correct(existing_submission, data_dir, task_id):
+                    if not self.overwrite_submission:
+                        logger.info(f"Submission for task {task_id} using {test_id} already exists, skipping")
+                        return
+                    else:
+                        logger.info(f"Submission for task {task_id} using {test_id} already exists, overwriting")
+                else:
+                    logger.info(f"Submission for task {task_id} using {test_id} already exists, but is incorrect.")
         
         task_attempts = []
 
