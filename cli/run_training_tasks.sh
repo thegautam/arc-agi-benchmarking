@@ -7,7 +7,7 @@ TASKS=(
 )
 MODEL_CONFIG="gpt-5-mini-2025-08-07-low"
 DATA_DIR="data/arc-agi/data/training"
-OUTPUT_DIR="training_results"
+OUTPUT_DIR="results/training"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_FILE="logs/training_run_${TIMESTAMP}.log"
 
