@@ -243,7 +243,7 @@ def main_cli(cli_args: Optional[List[str]] = None):
     parser.add_argument("--overwrite_submission", action="store_true", help="Overwrite the submission if it already exists")
     parser.add_argument("--print_submission", action="store_true", help="Print the submission to the console after each task")
     parser.add_argument("--task_set", type=str, default="public_eval", choices=["public_eval", "public_training"], help="Task set to run")
-    parser.add_argument("--num_attempts", type=int, default=2, help="Number of attempts for each prediction")
+    parser.add_argument("--num_attempts", type=int, default=1, help="Number of attempts for each prediction")
     parser.add_argument("--retry_attempts", type=int, default=2, help="Number of retry attempts for failed predictions")
     parser.add_argument(
         "--enable-metrics",
