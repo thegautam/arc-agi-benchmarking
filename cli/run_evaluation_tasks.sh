@@ -8,7 +8,7 @@ TASKS=(
 )
 MODEL_CONFIG="gpt-5-mini-2025-08-07-low"  # Or your preferred model config
 DATA_DIR="data/arc-agi/data/evaluation"
-OUTPUT_DIR="evaluation_results"
+OUTPUT_DIR="results/evaluation"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_FILE="logs/evaluation_run_${TIMESTAMP}.log"
 
@@ -48,7 +48,7 @@ run_task() {
         --print_logs 2>&1 | tee -a "$LOG_FILE"
     
     # Generate visualizations
-    python visualize_all.py \
+    python src.arc_agi_benchmarking.scoring.visualize_all.py \
         --task_id "$task_id" \
         --data_dir "$DATA_DIR" \
         --submission_dir "${task_dir}" \

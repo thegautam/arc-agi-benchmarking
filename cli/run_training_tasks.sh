@@ -47,7 +47,7 @@ run_task() {
         --print_logs 2>&1 | tee -a "$LOG_FILE" 
    
     # Visualize the results
-    python visualize_all.py \
+    python src.arc_agi_benchmarking.scoring.visualize_all.py \
         --task_id "$task_id" \
         --data_dir "$DATA_DIR" \
         --submission_dir "${task_dir}" \
