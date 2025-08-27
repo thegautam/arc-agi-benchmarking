@@ -139,6 +139,7 @@ class AttemptMetadata(BaseModel):
 
 class Attempt(BaseModel):
     answer: Union[str, List[List[int]]]
+    code: Optional[str] = None
     metadata: AttemptMetadata
     correct: Optional[bool] = None
 
@@ -150,17 +151,25 @@ class Attempt(BaseModel):
             raise KeyError("answer")
         return values
 
-    @field_validator('answer', mode='before')
+    @model_validator(mode="before")
     @classmethod
-    def parse_answer(cls, v: Union[str, List[List[int]]]):
-        """Parse answer strings using the backscan_json_parser."""
-        if isinstance(v, str):
+    def parse_answer_and_set_code(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        If 'answer' is a string, parse it into a List[List[int]] and attach any
+        extracted 'code' to the instance by injecting it into the values dict.
+        """
+        if not isinstance(values, dict):
+            return values
+        raw_answer = values.get("answer")
+        if isinstance(raw_answer, str):
             from .utils.parsing import parse_and_validate_json
+            parsed, code = parse_and_validate_json(raw_answer)
+            values["answer"] = parsed
+            # Only set code if provided by parser and not already present
+            if code is not None and not values.get("code"):
+                values["code"] = code
+        return values
 
-            parsed = parse_and_validate_json(v)
-            if parsed is not None:
-                return parsed
-        return v
 
 class TestPairAttempts(BaseModel):
     attempts: List[Optional[Attempt]]

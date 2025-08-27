@@ -7,7 +7,7 @@ Come up with python code that implements the pattern. Then run it on training ex
 Respond in this json format (with the exact same structure, replacing the placeholders with your actual values):
 {{
     "explanation": "your reasoning here",
-    "code": "your python code here",
+    "code": "python function that takes a grid as input and returns the output grid",
     "output": "your output here in the same format as the training examples"
 }}
 

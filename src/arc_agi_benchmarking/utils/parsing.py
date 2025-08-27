@@ -1,5 +1,5 @@
 import json
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Tuple
 import re
 
 # Type hint for the provider's JSON extraction function (can be refined later)
@@ -125,7 +125,7 @@ def extract_from_json_response(log_str: str) -> Optional[List[List[int]]]:
 
 # --- Main Parsing Orchestrator ---
 
-def parse_and_validate_json(response: str) -> List[List[int]]:
+def parse_and_validate_json(response: str) -> Tuple[List[List[int]], Optional[str]]:
     """
     Orchestrates parsing by trying the provider extractor.
     Returns the parsed List[List[int]] or raises ValueError if validation fails.
@@ -137,42 +137,18 @@ def parse_and_validate_json(response: str) -> List[List[int]]:
     parsers = [extract_from_json_response, backscan_json_parser, extract_from_boxed]
     
     # Try parsing as JSON first
-    try:
-        # Try to parse the entire string as JSON
-        data = json.loads(cleaned_response)
-        if isinstance(data, dict) and "output" in data:
-            output = data["output"]
-            # Handle case where output is a string representation of a list
-            if isinstance(output, str):
-                try:
-                    output = json.loads(output)
-                except json.JSONDecodeError:
-                    # Try to extract list from string using regex if direct parsing fails
-                    match = re.search(r'\[\s*\[.*\]\s*(?:,\s*\[.*\]\s*)*\]', output, re.DOTALL)
-                    if match:
-                        output = json.loads(match.group(0))
-            
-            if isinstance(output, list) and all(isinstance(row, list) for row in output):
-                return output
-            elif isinstance(output, list) and all(isinstance(x, (int, float)) for x in output):
-                return [output]  # Convert single list to list of lists
-    except json.JSONDecodeError:
-        pass  # Fall through to other parsers
-    
-    # If direct parsing fails, try the parsers
-    for parser in parsers:
-        try:
-            result = parser(cleaned_response)
-            if result is not None:
-                # Validate the structure: must be list of lists
-                if isinstance(result, list):
-                    if all(isinstance(row, list) for row in result):
-                        return result
-                    elif all(isinstance(x, (int, float)) for x in result):
-                        return [result]  # Convert single list to list of lists
-        except (json.JSONDecodeError, ValueError) as e:
-            continue
-    
+    # Try to parse the entire string as JSON
+    data = json.loads(cleaned_response)
+    output = data["output"]
+    if isinstance(output, str):
+        output = json.loads(output)
+    code = data.get("code")
+
+    if isinstance(output, list) and all(isinstance(row, list) for row in output):
+        return output, code
+    elif isinstance(output, list) and all(isinstance(x, (int, float)) for x in output):
+        return [output], code  # Convert single list to list of lists
+   
     # If we get here, all parsing attempts failed
     raise ValueError(f"Failed to parse response after all attempts: {response[:200]}...")
 
