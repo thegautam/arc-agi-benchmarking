@@ -56,24 +56,59 @@ def extract_code_from_message(content: str) -> Optional[str]:
 
 
 RUNNER_CODE = r"""
-import sys, json, ast, io, contextlib
+import sys, json, ast, io, contextlib, importlib
 
-FORBIDDEN_NODES = (ast.Import, ast.ImportFrom)
+ALLOWED_MODULES = {
+    'types',
+    'collections',
+    'collections.abc',
+}
+
+def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+    if level != 0:
+        raise ImportError('Relative imports are not allowed')
+    allowed = ALLOWED_MODULES
+    base = name.split('.')[0]
+    allowed_bases = {m.split('.')[0] for m in allowed}
+    if name not in allowed and base not in allowed_bases:
+        raise ImportError(f'Import of module "{name}" is not allowed')
+    mod = importlib.import_module(name)
+    if not fromlist:
+        return importlib.import_module(base)
+    return mod
 
 SAFE_BUILTINS = {
     'range': range, 'len': len, 'abs': abs, 'min': min, 'max': max, 'sum': sum,
     'enumerate': enumerate, 'map': map, 'filter': filter, 'list': list,
     'all': all, 'any': any, 'zip': zip,
     'set': set, 'sorted': sorted, 'tuple': tuple, 'int': int, 'float': float, 'bool': bool,
-    'dict': dict, 'str': str, 'reversed': reversed, 'print': print
+    'dict': dict, 'str': str, 'reversed': reversed, 'print': print,
+    'isinstance': isinstance, 'issubclass': issubclass,
+    '__import__': safe_import,
 }
 
 
+def _validate_imports(tree: ast.AST):
+    allowed = ALLOWED_MODULES
+    allowed_bases = {m.split('.')[0] for m in allowed}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                name = alias.name
+                base = name.split('.')[0]
+                if name not in allowed and base not in allowed_bases:
+                    raise RuntimeError(f'Import of module "{name}" is not allowed')
+        elif isinstance(node, ast.ImportFrom):
+            if node.level != 0:
+                raise RuntimeError('Relative imports are not allowed')
+            mod = node.module or ''
+            base = mod.split('.')[0] if mod else ''
+            if mod not in allowed and base not in allowed_bases:
+                raise RuntimeError(f'Import from "{mod}" is not allowed')
+
 def safe_exec(code: str, g: dict):
     tree = ast.parse(code, mode='exec')
-    for node in ast.walk(tree):
-        if isinstance(node, FORBIDDEN_NODES):
-            raise RuntimeError('Imports are not allowed')
+    _validate_imports(tree)
     g['__builtins__'] = SAFE_BUILTINS
     with contextlib.redirect_stdout(io.StringIO()):
         exec(compile(tree, '<llm>', 'exec'), g)
@@ -90,8 +125,7 @@ def discover_fn(g: dict):
 def main():
     data = json.load(sys.stdin)
     code = data['code']
-    train_inputs = data.get('train_inputs') or []
-    test_input = data.get('test_input')
+    input_grid = data.get('input')
 
     g: dict = {}
     buf = io.StringIO()
@@ -104,24 +138,13 @@ def main():
         print(json.dumps({'error': 'no_callable_found', 'stdout': pre_stdout}))
         return
 
-    train_outputs = []
-    for grid in train_inputs:
-        try:
-            out = fn(grid)
-        except Exception as e:
-            print(json.dumps({'error': f'train_call_failed: {e}', 'stdout': pre_stdout}))
-            return
-        train_outputs.append(out)
+    try:
+        output = fn(input_grid)
+    except Exception as e:
+        print(json.dumps({'error': f'call_failed: {e}', 'stdout': pre_stdout}))
+        return
 
-    test_output = None
-    if test_input is not None:
-        try:
-            test_output = fn(test_input)
-        except Exception as e:
-            print(json.dumps({'error': f'test_call_failed: {e}', 'stdout': pre_stdout}))
-            return
-
-    print(json.dumps({'train_outputs': train_outputs, 'test_output': test_output, 'stdout': pre_stdout, 'error': None}))
+    print(json.dumps({'output': output, 'stdout': pre_stdout, 'error': None}))
 
 
 if __name__ == '__main__':
@@ -131,17 +154,16 @@ if __name__ == '__main__':
 
 def run_code_attempt(
     code: str,
-    train_inputs: List[List[List[int]]],
-    test_input: List[List[int]],
+    input_grid: List[List[int]],
     timeout: int,
-) -> Tuple[Optional[List[List[List[int]]]], Optional[List[List[int]]], str, Optional[str]]:
+) -> Tuple[Optional[List[List[int]]], str, Optional[str]]:
     """
-    Returns (train_outputs, test_output, stdout, error)
+    Execute code defining a transform-like function on a single input grid.
+    Returns (output_grid, stdout, error)
     """
     payload = json.dumps({
         "code": code,
-        "train_inputs": train_inputs,
-        "test_input": test_input,
+        "input": input_grid,
     })
 
     try:
@@ -153,19 +175,18 @@ def run_code_attempt(
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
-        return None, None, "", "timeout"
+        return None, "", "timeout"
 
     if proc.returncode != 0:
-        return None, None, proc.stdout.decode("utf-8", "ignore"), proc.stderr.decode("utf-8", "ignore")
+        return None, proc.stdout.decode("utf-8", "ignore"), proc.stderr.decode("utf-8", "ignore")
 
     try:
         data = json.loads(proc.stdout.decode("utf-8", "ignore"))
     except Exception as e:
-        return None, None, proc.stdout.decode("utf-8", "ignore"), f"bad_json:{e}"
+        return None, proc.stdout.decode("utf-8", "ignore"), f"bad_json:{e}"
 
     return (
-        data.get("train_outputs"),
-        data.get("test_output"),
+        data.get("output"),
         data.get("stdout", ""),
         data.get("error"),
     )
@@ -309,9 +330,22 @@ def process_task(
             expected_train = [p.output for p in task.train]
             test_input = task.test[pair_index].input
 
-            train_outs, test_out, stdout_text, error = run_code_attempt(
-                code, train_inputs, test_input, timeout
-            )
+            # Compute train outputs by calling the simpler runner per input
+            train_outs: List[Any] = []
+            stdout_pieces: List[str] = []
+            error: Optional[str] = None
+            for grid in train_inputs:
+                out_g, stdout_g, err_g = run_code_attempt(code, grid, timeout)
+                stdout_pieces.append(stdout_g or "")
+                if err_g and not error:
+                    error = f"train_call_failed: {err_g}"
+                train_outs.append(out_g)
+
+            # Test output via single call
+            test_out, stdout_test, err_test = run_code_attempt(code, test_input, timeout)
+            stdout_text = ("\n".join(stdout_pieces + [stdout_test or ""]))[-2000:]
+            if err_test and not error:
+                error = f"test_call_failed: {err_test}"
 
             if error and print_logs:
                 print(f"[task {task_id} pair {pair_index}] attempt error: {error}")

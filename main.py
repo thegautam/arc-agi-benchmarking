@@ -18,6 +18,7 @@ from arc_agi_benchmarking.prompts.prompt_manager import convert_task_pairs_to_pr
 from typing import List, Any, Optional
 import argparse
 import logging
+from arc_agi_benchmarking.scoring.execute_llm_code import run_code_attempt, is_grid
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,29 @@ class ARCTester:
         try:
             logger.debug("Waiting for model response...")
             response: Attempt = self.provider.make_prediction(prompt, task_id=task_id, test_id=test_id, pair_index=pair_index)
+        
+            # Save the code used to make the prediction to a file in the submission directory
+            with open(os.path.join(self.save_submission_dir, f"{task_id}.py"), "w") as f:
+                f.write(response.code)
+           
+            # Execute simple transform(grid) code safely and use correct grid attribute
+            test_output = None
+            if response.code:
+                # Prefer sandboxed execution
+                try:
+                    test_output, _, _ = run_code_attempt(
+                        response.code,
+                        test_input.input,
+                        timeout=10,
+                    )
+                except Exception:
+                    test_output = None
+
+            # Update the attempt answer only if we produced an output
+            if test_output is not None:
+                response.answer = test_output
+            else:
+                logger.info(f"Code execution failed or returned invalid output. error={error!r}")                      
             
             logger.debug(f"Response received - Cost: ${response.metadata.cost.total_cost:.6f}, Usage: {response.metadata.usage.total_tokens} tokens")
             
