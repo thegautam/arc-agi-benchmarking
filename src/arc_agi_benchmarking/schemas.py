@@ -1,8 +1,9 @@
-from pydantic import BaseModel, model_validator, root_validator, field_validator
+from pydantic import BaseModel, model_validator
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 import json
 import hashlib
+
 
 class APIType:
     """
@@ -158,10 +159,9 @@ class Attempt(BaseModel):
         If 'answer' is a string, parse it into a List[List[int]] and attach any
         extracted 'code' to the instance by injecting it into the values dict.
         """
-        if not isinstance(values, dict):
-            return values
         raw_answer = values.get("answer")
         if isinstance(raw_answer, str):
+            # Lazy import to avoid circular import via utils.__init__ -> task_utils -> schemas
             from .utils.parsing import parse_and_validate_json_with_code
             parsed, code = parse_and_validate_json_with_code(raw_answer)
             values["answer"] = parsed

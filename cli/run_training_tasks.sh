@@ -18,42 +18,24 @@ mkdir -p "logs"
 # Initialize results file
 echo "Task ID,Score,Cost,Attempts,Output Tokens,Duration" > "${OUTPUT_DIR}/results_summary.csv"
 
-# Function to run a single task
+# Function to run a single task (uses shell wrapper that calls predict/score/visualize)
 run_task() {
     local task_id=$1
     local task_dir="${OUTPUT_DIR}/${task_id}"
-    
+
     echo "==================================================" | tee -a "$LOG_FILE"
     echo "Running task: $task_id" | tee -a "$LOG_FILE"
     echo "==================================================" | tee -a "$LOG_FILE"
-    
+
     # Create task directory
     mkdir -p "${task_dir}"
-    
-    # Run the task
-    python main.py \
-        --task_id "$task_id" \
-        --config "$MODEL_CONFIG" \
-        --data_dir "$DATA_DIR" \
-        --save_submission_dir "${task_dir}" \
-        --print_submission \
+
+    # Run end-to-end (generate -> score -> visualize)
+    bash cli/run_task.sh "$task_id" "$MODEL_CONFIG" "$DATA_DIR" "$task_dir" \
+        --print-submission \
         --log-level INFO 2>&1 | tee -a "$LOG_FILE"
-       
-    # Score the task
-    python -m src.arc_agi_benchmarking.scoring.scoring \
-        --task_dir "$DATA_DIR" \
-        --submission_dir "${task_dir}" \
-        --results_dir "$task_dir" \
-        --print_logs 2>&1 | tee -a "$LOG_FILE" 
-   
-    # Visualize the results
-    python src.arc_agi_benchmarking.scoring.visualize_all.py \
-        --task_id "$task_id" \
-        --data_dir "$DATA_DIR" \
-        --submission_dir "${task_dir}" \
-        --output_dir "${task_dir}" 2>&1 | tee -a "$LOG_FILE"
-       
-    # Extract results
+
+    # Extract results and append to summary CSV
     local score_file="${task_dir}/results.json"
     if [ -f "$score_file" ]; then
         local score=$(jq -r '.score' "$score_file" 2>/dev/null || echo "0")
@@ -61,8 +43,6 @@ run_task() {
         local attempts=$(jq -r '.total_attempts' "$score_file" 2>/dev/null || echo "0")
         local tokens=$(jq -r '.avg_output_tokens_per_task' "$score_file" 2>/dev/null || echo "0")
         local duration=$(jq -r '.avg_duration_per_task' "$score_file" 2>/dev/null || echo "0")
-        
-        # Append to summary
         echo "\"$task_id\",$score,$cost,$attempts,$tokens,$duration" >> "${OUTPUT_DIR}/results_summary.csv"
     fi
 }
@@ -86,11 +66,11 @@ done
 python -m src.arc_agi_benchmarking.scoring.scoring \
     --task_dir "$DATA_DIR" \
     --submission_dir "$OUTPUT_DIR" \
-    --results_dir "$task_dir" \
+    --results_dir "$OUTPUT_DIR" \
     --print_logs 2>&1 | tee -a "$LOG_FILE"
 
 # Print summary
-echo ""
+echo "" 
 echo "==================================================" | tee -a "$LOG_FILE"
 echo "Training Run Summary" | tee -a "$LOG_FILE"
 echo "==================================================" | tee -a "$LOG_FILE"
@@ -103,3 +83,4 @@ echo "Detailed results saved to:" | tee -a "$LOG_FILE"
 echo "- Log file: $LOG_FILE" | tee -a "$LOG_FILE"
 echo "- Results summary: ${OUTPUT_DIR}/results_summary.csv" | tee -a "$LOG_FILE"
 echo "- Task directories: ${OUTPUT_DIR}/<task_id>/" | tee -a "$LOG_FILE"
+
