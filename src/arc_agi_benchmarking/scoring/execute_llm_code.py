@@ -62,6 +62,9 @@ ALLOWED_MODULES = {
     'types',
     'collections',
     'collections.abc',
+    'math',
+    'random',
+    'numpy',
 }
 
 def safe_import(name, globals=None, locals=None, fromlist=(), level=0):

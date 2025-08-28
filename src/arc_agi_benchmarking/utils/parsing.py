@@ -64,9 +64,9 @@ def backscan_json_parser(log_str: str) -> Optional[List[List[int]]]:
 
 def extract_from_boxed(log_str: str) -> Optional[List[List[int]]]:
     """
-    Extracts JSON from a LaTeX-style \boxed{} command in a string.
+    Extracts JSON from a LaTeX-style \boxed{} command anywhere in the string.
     """
-    match = re.search(r"\\boxed\{(.*?)\}\s*$", log_str, re.DOTALL | re.MULTILINE)
+    match = re.search(r"\\boxed\{(.*?)\}", log_str, re.DOTALL)
     if match:
         content = match.group(1).strip()
         try:
@@ -97,7 +97,20 @@ def extract_from_json_response(log_str: str) -> Optional[List[List[int]]]:
     try:
         data = json.loads(clean_str)
         if isinstance(data, dict) and "output" in data:
-            return backscan_json_parser(data["output"])
+            output = data["output"]
+            # Some providers return output as a JSON-encoded string
+            if isinstance(output, str):
+                try:
+                    output = json.loads(output)
+                except json.JSONDecodeError:
+                    # As a fallback, attempt to backscan inside the string
+                    parsed = backscan_json_parser(output)
+                    if parsed is not None:
+                        output = parsed
+            if isinstance(output, list) and all(isinstance(row, list) for row in output):
+                return output
+            if isinstance(output, list) and all(isinstance(x, (int, float)) for x in output):
+                return [output]
     except json.JSONDecodeError:
         # If that fails, try to find a JSON object in the string
         try:
@@ -125,32 +138,61 @@ def extract_from_json_response(log_str: str) -> Optional[List[List[int]]]:
 
 # --- Main Parsing Orchestrator ---
 
-def parse_and_validate_json(response: str) -> Tuple[List[List[int]], Optional[str]]:
+def parse_and_validate_json_with_code(response: str) -> Tuple[List[List[int]], Optional[str]]:
     """
-    Orchestrates parsing by trying the provider extractor.
-    Returns the parsed List[List[int]] or raises ValueError if validation fails.
+    Robustly parse a model response into (output, code).
+    - Supports full JSON objects with 'output' and optional 'code'.
+    - Supports raw JSON arrays of arrays.
+    - Supports LaTeX-style \boxed{...} blocks.
+    - Performs backscan to find the last JSON candidate.
+    Raises ValueError if parsing fails.
     """
-    # Clean up the response string first
     cleaned_response = response.strip()
-    
-    # List of parser functions to try in order
-    parsers = [extract_from_json_response, backscan_json_parser, extract_from_boxed]
-    
-    # Try parsing as JSON first
-    # Try to parse the entire string as JSON
-    data = json.loads(cleaned_response)
-    output = data["output"]
-    if isinstance(output, str):
-        output = json.loads(output)
-    code = data.get("code")
 
-    if isinstance(output, list) and all(isinstance(row, list) for row in output):
-        return output, code
-    elif isinstance(output, list) and all(isinstance(x, (int, float)) for x in output):
-        return [output], code  # Convert single list to list of lists
-   
-    # If we get here, all parsing attempts failed
+    # 1) Try a strict JSON parse first
+    try:
+        data = json.loads(cleaned_response)
+        if isinstance(data, dict) and "output" in data:
+            output = data["output"]
+            if isinstance(output, str):
+                try:
+                    output = json.loads(output)
+                except json.JSONDecodeError:
+                    parsed = backscan_json_parser(output)
+                    if parsed is not None:
+                        output = parsed
+            code = data.get("code")
+            if isinstance(output, list) and all(isinstance(row, list) for row in output):
+                return output, code
+            if isinstance(output, list) and all(isinstance(x, (int, float)) for x in output):
+                return [output], code
+        elif isinstance(data, list):
+            # Already a list (maybe list of lists)
+            if data and all(isinstance(row, list) for row in data):
+                return data, None
+            if data and all(isinstance(x, (int, float)) for x in data):
+                return [data], None
+    except json.JSONDecodeError:
+        pass
+
+    # 2) Try helper extractors (prefer explicit boxed and last-JSON backscan before generic extraction)
+    for extractor in (extract_from_boxed, backscan_json_parser, extract_from_json_response):
+        try:
+            parsed = extractor(cleaned_response)
+        except Exception:
+            parsed = None
+        if parsed is not None:
+            if isinstance(parsed, list) and all(isinstance(row, list) for row in parsed):
+                return parsed, None
+
     raise ValueError(f"Failed to parse response after all attempts: {response[:200]}...")
+
+def parse_and_validate_json(response: str) -> List[List[int]]:
+    """
+    Backwards-compatible API returning only the parsed output.
+    """
+    output, _ = parse_and_validate_json_with_code(response)
+    return output
 
 if __name__ == "__main__":
     response0 = '{\n    "explanation": "Find the single cell with value 8 and the single cell with value 7. Fill the entire row and entire column of the 8 with 8s, and fill the entire row and entire column of the 7 with 7s. When the row of one number intersects the column of the other, place a 2 at that intersection (overriding 7 or 8). All other cells remain 0.",\n    "code": "def transform(grid):\\n    n = len(grid)\\n    # locate 8 and 7\\n    pos8 = pos7 = None\\n    for i in range(n):\\n        for j in range(n):\\n            if grid[i][j] == 8:\\n                pos8 = (i,j)\\n            if grid[i][j] == 7:\\n                pos7 = (i,j)\\n    out = [[0]*n for _ in range(n)]\\n    if pos8:\\n        r8,c8 = pos8\\n        # fill row and column with 8\\n        for j in range(n): out[r8][j] = 8\\n        for i in range(n): out[i][c8] = 8\\n    if pos7:\\n        r7,c7 = pos7\\n        # fill row and column with 7\\n        for j in range(n): out[r7][j] = 7\\n        for i in range(n): out[i][c7] = 7\\n    # intersections: row of 8 with column of 7, and row of 7 with column of 8 set to 2\\n    if pos8 and pos7:\\n        r8,c8 = pos8\\n        r7,c7 = pos7\\n        out[r8][c7] = 2\\n        out[r7][c8] = 2\\n    return out\\n\\n# Run on training examples to verify\\ntrain0 = [[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,8,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,7,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0]]\\ntrain1 = [[0,0,0,0,0,0,0,0,0],[0,0,0,8,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,7,0,0],[0,0,0,0,0,0,0,0,0]]\\nprint(transform(train0))\\nprint(transform(train1))\\n\\n# Run on test input\\ntest = [[0,0,0,0,0,0,0,0,0],[0,0,0,0,8,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,7,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0]]\\nresult = transform(test)\\nprint(result)\\n",\n    "output": [[0, 0, 0, 0, 8, 0, 0, 0, 0], [0, 2, 8, 8, 2, 8, 7, 8, 8], [0, 0, 0, 0, 8, 0, 0, 0, 0], [0, 0, 0, 0, 8, 0, 0, 0, 0], [0, 0, 0, 0, 8, 0, 0, 0, 0], [0, 0, 0, 0, 8, 0, 0, 0, 0], [7, 7, 7, 7, 2, 7, 7, 7, 7], [0, 0, 0, 0, 8, 0, 0, 0, 0], [0, 0, 0, 0, 8, 0, 0, 0, 0]]\n}'

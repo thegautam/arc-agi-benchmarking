@@ -10,6 +10,7 @@ if _src_dir not in sys.path:
 
 import json
 from arc_agi_benchmarking.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter, OpenRouterAdapter, XAIAdapter
+from arc_agi_benchmarking.cache.cached_adapter import CachedAdapter
 from dotenv import load_dotenv
 import arc_agi_benchmarking.utils as utils
 from arc_agi_benchmarking.utils.metrics import timeit, set_metrics_enabled
@@ -37,25 +38,34 @@ class ARCTester:
 
     def init_provider(self, provider_name: str) -> ProviderAdapter:
         if provider_name == "anthropic":
-            return AnthropicAdapter(self.config)
+            provider = AnthropicAdapter(self.config)
         elif provider_name == "openai":
-            return OpenAIAdapter(self.config)
+            provider = OpenAIAdapter(self.config)
         elif provider_name == "deepseek":
-            return DeepseekAdapter(self.config)
+            provider = DeepseekAdapter(self.config)
         elif provider_name == "gemini":
-            return GeminiAdapter(self.config)
+            provider = GeminiAdapter(self.config)
         elif provider_name == "huggingfacefireworks":
-            return HuggingFaceFireworksAdapter(self.config)
+            provider = HuggingFaceFireworksAdapter(self.config)
         elif provider_name == "fireworks":
-            return FireworksAdapter(self.config)
+            provider = FireworksAdapter(self.config)
         elif provider_name == "grok":
-            return GrokAdapter(self.config)
+            provider = GrokAdapter(self.config)
         elif provider_name == "openrouter":
-            return OpenRouterAdapter(self.config)
+            provider = OpenRouterAdapter(self.config)
         elif provider_name == "xai":
-            return XAIAdapter(self.config)
+            provider = XAIAdapter(self.config)
         else:
             raise ValueError(f"Unsupported provider: {provider_name}")
+        
+        # Optional caching layer (enabled via env var ARC_AGI_CACHE_ENABLED)
+        cache_enabled = os.getenv("ARC_AGI_CACHE_ENABLED", "1").lower() in {"1", "true", "yes", "on"}
+        if cache_enabled:
+            cache_dir = os.getenv("ARC_AGI_CACHE_DIR")
+            zero_cost_on_hit = os.getenv("ARC_AGI_CACHE_ZERO_COST_ON_HIT", "1").lower() in {"1", "true", "yes", "on"}
+            provider = CachedAdapter(provider, cache_dir=cache_dir, enabled=True, zero_cost_on_hit=zero_cost_on_hit)
+            logger.info(f"Provider caching enabled. Cache dir: {cache_dir or 'logs/provider_cache'}; zero_cost_on_hit={zero_cost_on_hit}")
+        return provider
         
     def predict_task_output(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int):
         """
@@ -77,17 +87,19 @@ class ARCTester:
             logger.debug("Waiting for model response...")
             response: Attempt = self.provider.make_prediction(prompt, task_id=task_id, test_id=test_id, pair_index=pair_index)
         
-            # Save the code used to make the prediction to a file in the submission directory
-            with open(os.path.join(self.save_submission_dir, f"{task_id}.py"), "w") as f:
-                f.write(response.code)
-           
+            # Save the code if present
+            code_str = getattr(response, "code", None)
+            if code_str:
+                with open(os.path.join(self.save_submission_dir, f"{task_id}.py"), "w") as f:
+                    f.write(code_str)
+
             # Execute simple transform(grid) code safely and use correct grid attribute
             test_output = None
-            if response.code:
+            if code_str:
                 # Prefer sandboxed execution
                 try:
                     test_output, _, _ = run_code_attempt(
-                        response.code,
+                        code_str,
                         test_input.input,
                         timeout=10,
                     )
@@ -98,7 +110,7 @@ class ARCTester:
             if test_output is not None:
                 response.answer = test_output
             else:
-                logger.info(f"Code execution failed or returned invalid output. error={error!r}")                      
+                logger.info("Code execution failed, missing, or returned invalid output; keeping parsed answer.")                      
             
             logger.debug(f"Response received - Cost: ${response.metadata.cost.total_cost:.6f}, Usage: {response.metadata.usage.total_tokens} tokens")
             

@@ -162,8 +162,8 @@ class Attempt(BaseModel):
             return values
         raw_answer = values.get("answer")
         if isinstance(raw_answer, str):
-            from .utils.parsing import parse_and_validate_json
-            parsed, code = parse_and_validate_json(raw_answer)
+            from .utils.parsing import parse_and_validate_json_with_code
+            parsed, code = parse_and_validate_json_with_code(raw_answer)
             values["answer"] = parsed
             # Only set code if provided by parser and not already present
             if code is not None and not values.get("code"):
