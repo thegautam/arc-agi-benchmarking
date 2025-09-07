@@ -23,10 +23,6 @@ run_task() {
     local task_id=$1
     local task_dir="${OUTPUT_DIR}/${task_id}"
 
-    echo "==================================================" | tee -a "$LOG_FILE"
-    echo "Running task: $task_id" | tee -a "$LOG_FILE"
-    echo "==================================================" | tee -a "$LOG_FILE"
-
     # Create task directory
     mkdir -p "${task_dir}"
 
@@ -63,11 +59,11 @@ for task in "${TASKS[@]}"; do
 done
 
 # Score everything
-python -m src.arc_agi_benchmarking.scoring.scoring \
+uv run python -m src.arc_agi_benchmarking.scoring.scoring \
     --task_dir "$DATA_DIR" \
     --submission_dir "$OUTPUT_DIR" \
     --results_dir "$OUTPUT_DIR" \
-    --print_logs 2>&1 | tee -a "$LOG_FILE"
+#    --print_logs 2>&1 | tee -a "$LOG_FILE"
 
 # Print summary
 echo "" 

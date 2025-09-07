@@ -142,8 +142,6 @@ class ARCScorer:
         """
         Read a submission from file, score it, then return the score
         """
-        self.print_log(f"Scoring {self.submission_dir}\n")
-
         total_score = 0
         total_tasks = 0
         task_results = {}
@@ -172,7 +170,7 @@ class ARCScorer:
                 "num_attempts_with_empty_list": scoring_result.num_attempts_with_empty_list
             }
 
-            self.print_log(f"    Task {task_id} score: {scoring_result.score:.2f}, cost: ${scoring_result.total_cost:.4f}, attempts: {scoring_result.attempts}, output_tokens: {scoring_result.output_tokens}, duration: {scoring_result.duration}")
+            self.print_log(f" Score: {scoring_result.score:.2f} | Cost: ${scoring_result.total_cost:.2f} | duration: {scoring_result.duration:.2f}")
 
         # Calculate average costs
         avg_cost_per_task = self.total_cost / total_tasks if total_tasks > 0 else 0
@@ -185,7 +183,6 @@ class ARCScorer:
         if self.results_dir:
             self.results_dir.mkdir(parents=True, exist_ok=True)
             results_file = self.results_dir / "results.json"
-            self.print_log(f"Saving results to {results_file}")
             with results_file.open("w") as f:
                 json.dump({
                     "score": total_score,
@@ -202,14 +199,14 @@ class ARCScorer:
 
         # Calculate and print percentage score
         percentage_score = (total_score / total_tasks * 100) if total_tasks > 0 else 0
-        print(f"\nFinal Score: {percentage_score:.2f}% ({total_score:.2f}/{total_tasks})")
-        print(f"Total Cost: ${self.total_cost:.4f}")
-        print(f"Average Cost per Task: ${avg_cost_per_task:.4f}")
-        print(f"Average Cost per Attempt: ${avg_cost_per_attempt:.4f}")
-        print(f"Average Output Tokens per Task: {avg_output_tokens_per_task}")
-        print(f"Average Duration per Task: {avg_duration_per_task}")
-        print(f"Percentage Attempts with Empty List: {percentage_attempts_with_empty_list*100:.2f}%")
-        print(f"Total Attempts: {self.total_attempts}")
+        # print(f"\nFinal Score: {percentage_score:.2f}% ({total_score:.2f}/{total_tasks})")
+        # print(f"Total Cost: ${self.total_cost:.4f}")
+        # print(f"Average Cost per Task: ${avg_cost_per_task:.4f}")
+        # print(f"Average Cost per Attempt: ${avg_cost_per_attempt:.4f}")
+        # print(f"Average Output Tokens per Task: {avg_output_tokens_per_task}")
+        # print(f"Average Duration per Task: {avg_duration_per_task}")
+        # print(f"Percentage Attempts with Empty List: {percentage_attempts_with_empty_list*100:.2f}%")
+        # print(f"Total Attempts: {self.total_attempts}")
 
         return total_score, total_tasks
 

@@ -229,12 +229,12 @@ def visualize_all(task_id: str, data_dir: str, submission_dir: str, output_dir: 
                 ax.axis('off')
     
     # Adjust layout and save
-    plt.tight_layout()
+    # Note: Avoid plt.tight_layout() because some Axes/artists (e.g., fig.text titles) are not compatible
+    # which triggers a UserWarning. GridSpec spacing and bbox_inches='tight' are sufficient here.
     output_path = Path(output_dir) / f'{task_id}_all.png'
     plt.savefig(output_path, bbox_inches='tight', dpi=150)
     plt.close()
     
-    print(f"Visualization saved to {output_path}")
 
 if __name__ == "__main__":
     import argparse

@@ -108,4 +108,3 @@ uv run python -m src.arc_agi_benchmarking.scoring.visualize_all \
   --submission_dir "$WORK_DIR" \
   --output_dir "$WORK_DIR"
 
-echo "[run_task.sh] Done: $TASK_ID"
