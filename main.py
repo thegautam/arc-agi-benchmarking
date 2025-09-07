@@ -192,13 +192,14 @@ class ARCTester:
 
                 # Check if the existing submission is correct
                 if utils.is_submission_correct(existing_submission, data_dir, task_id):
+                    logger.info("cached-correct |")
                     if not self.overwrite_submission:
-                        logger.info(f"Submission for task {task_id} using {test_id} already exists, skipping")
+                        logger.info(f" complete |")
                         return
                     else:
-                        logger.info(f"Submission for task {task_id} using {test_id} already exists, overwriting")
+                        logger.info(f" overwriting |")
                 else:
-                    logger.info(f"cached-incorrect |")
+                    logger.info("cached-incorrect |")
         
         task_attempts = []
 

@@ -123,22 +123,66 @@ def is_submission_correct(submission: list, data_dir: str, task_id: str) -> bool
     Returns:
         bool: True if the submission is correct, False otherwise
     """
+    # Validate submission structure
     if not submission or not isinstance(submission, list):
         return False
-        
-    # Get the test pairs to verify against
-    test_pairs = get_test_input_from_task(data_dir, task_id)
-    if not test_pairs:
+
+    # Load task JSON directly to access expected outputs for test pairs
+    task_file = os.path.join(data_dir, f"{task_id}.json")
+    if not os.path.exists(task_file):
         return False
-        
-    # Get the most recent non-empty attempt
-    for attempt in reversed(submission):
-        if attempt.get('answer') and isinstance(attempt['answer'], list):
-            # Check if the answer matches any of the test outputs
-            for test_pair in test_pairs:
-                if hasattr(test_pair, 'output') and attempt['answer'] == test_pair.output:
-                    return True
-    return False
+
+    with open(task_file, 'r') as f:
+        task_data = json.load(f)
+
+    test_data = task_data.get('test', [])
+    if not isinstance(test_data, list) or len(test_data) == 0:
+        return False
+
+    # If expected outputs are not present (e.g., evaluation set), we cannot verify
+    # Treat as not verifiable -> return False (do not assert correctness)
+    if not all(isinstance(item, dict) and 'output' in item for item in test_data):
+        return False
+
+    # Compare each test pair's latest non-null attempt's answer with expected output
+    # Require all available test outputs to match
+    for idx, test_item in enumerate(test_data):
+        expected_output = test_item.get('output')
+        # If we don't have a corresponding submission entry, it's incorrect
+        if idx >= len(submission):
+            return False
+
+        pair_submission = submission[idx]
+        if not isinstance(pair_submission, dict):
+            return False
+
+        # Find the highest-numbered non-null attempt for this pair
+        latest_answer = None
+        max_attempt_num = -1
+        for k, v in pair_submission.items():
+            if isinstance(k, str) and k.startswith('attempt_') and v is not None:
+                try:
+                    num = int(k.split('_', 1)[1])
+                except (IndexError, ValueError):
+                    continue
+                if num > max_attempt_num:
+                    max_attempt_num = num
+                    if isinstance(v, dict):
+                        latest_answer = v.get('answer')
+                    else:
+                        # If the structure is not a dict, cannot verify
+                        latest_answer = None
+
+        # Must have a latest non-null answer
+        if latest_answer is None:
+            return False
+
+        # Answers should be lists (grids); if not, consider incorrect
+        if latest_answer != expected_output:
+            return False
+
+    # All test pairs matched expected outputs
+    return True
 
 
 def read_provider_rate_limits() -> dict:
