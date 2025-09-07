@@ -67,7 +67,7 @@ class ARCTester:
             logger.debug(f"Provider caching enabled. Cache dir: {cache_dir or 'logs/provider_cache'}; zero_cost_on_hit={zero_cost_on_hit}")
         return provider
         
-    def predict_task_output(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int):
+    def predict_task_output(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int, bypass_cache: bool = False):
         """
         Given a task, predict the test output. This reponse may need parsing.
 
@@ -84,7 +84,21 @@ class ARCTester:
         
         try:
             logger.debug("Waiting for model response...")
-            response: Attempt = self.provider.make_prediction(prompt, task_id=task_id, test_id=test_id, pair_index=pair_index)
+            # If provider is wrapped with cache, allow bypass for fresh calls
+            try:
+                if isinstance(self.provider, CachedAdapter):
+                    response: Attempt = self.provider.make_prediction(
+                        prompt, task_id=task_id, test_id=test_id, pair_index=pair_index, bypass_cache=bypass_cache
+                    )
+                else:
+                    response: Attempt = self.provider.make_prediction(
+                        prompt, task_id=task_id, test_id=test_id, pair_index=pair_index
+                    )
+            except TypeError:
+                # Fallback for providers that don't support bypass_cache kwarg
+                response: Attempt = self.provider.make_prediction(
+                    prompt, task_id=task_id, test_id=test_id, pair_index=pair_index
+                )
         
             # Save the code if present
             code_str = getattr(response, "code", None)
@@ -130,13 +144,13 @@ class ARCTester:
 
         return response
 
-    def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int) -> Attempt:
+    def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int, bypass_cache: bool = False) -> Attempt:
         """
         Modified to return the full Attempt object instead of just the parsed answer
         Uses the refactored parsing logic from arc_agi_benchmarking.parsing
         """
         # Get the initial response as an Attempt object
-        attempt: Attempt = self.predict_task_output(training_pairs, test_input, task_id, test_id, pair_index)
+        attempt: Attempt = self.predict_task_output(training_pairs, test_input, task_id, test_id, pair_index, bypass_cache=bypass_cache)
 
         try:
             # If the validator couldn't parse the answer, fall back to the provider extractor
@@ -186,6 +200,7 @@ class ARCTester:
         # Logic for overwrite. If save_submission_dir is provided, check if the submission already exists
         if self.save_submission_dir:
             submission_file = os.path.join(self.save_submission_dir, f"{task_id}.json")
+            bypass_cache_for_task = False
             if os.path.exists(submission_file):
                 with open(submission_file, "r") as f:
                     existing_submission = json.load(f)
@@ -199,7 +214,10 @@ class ARCTester:
                     else:
                         logger.info(f" overwriting |")
                 else:
-                    logger.info("cached-incorrect |")
+                    logger.info("cached-incorrect | bypass |")
+                    bypass_cache_for_task = True
+        else:
+            bypass_cache_for_task = False
         
         task_attempts = []
 
@@ -227,7 +245,8 @@ class ARCTester:
                             test_input=pair_input_obj,
                             task_id=task_id,
                             test_id=test_id,
-                            pair_index=pair_index
+                            pair_index=pair_index,
+                            bypass_cache=bypass_cache_for_task
                         )
 
                         if attempt_obj is not None:

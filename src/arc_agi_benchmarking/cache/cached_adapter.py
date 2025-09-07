@@ -33,37 +33,40 @@ class CachedAdapter:
     def extract_json_from_response(self, input_response: str):
         return self._adapter.extract_json_from_response(input_response)
 
-    def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
+    def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None, bypass_cache: bool = False) -> Attempt:
         if not self._enabled:
             return self._adapter.make_prediction(prompt, task_id=task_id, test_id=test_id, pair_index=pair_index)
 
         key = ProviderCache.build_key_dict(prompt=prompt, model_config=self.model_config)
-        hit = self._cache.get(key)
-        if hit is not None:
-            # Return a copy adjusted for current call context
-            now = datetime.now(timezone.utc)
-            md = deepcopy(hit.metadata)
-            md.task_id = task_id
-            md.test_id = test_id
-            md.pair_index = pair_index
-            md.start_timestamp = now
-            md.end_timestamp = now
-            if self._zero_cost_on_hit:
-                md.usage = Usage(
-                    prompt_tokens=0,
-                    completion_tokens=0,
-                    total_tokens=0,
-                    completion_tokens_details=md.usage.completion_tokens_details.__class__(
-                        reasoning_tokens=0,
-                        accepted_prediction_tokens=0,
-                        rejected_prediction_tokens=0,
-                    ),
-                )
-                md.cost = Cost(prompt_cost=0.0, completion_cost=0.0, reasoning_cost=0.0, total_cost=0.0)
-            attempt = Attempt(answer=hit.answer, code=hit.code, metadata=md, correct=hit.correct)
-            return attempt
 
-        # Miss: call provider and store
+        # Only read from cache when not bypassing
+        if not bypass_cache:
+            hit = self._cache.get(key)
+            if hit is not None:
+                # Return a copy adjusted for current call context
+                now = datetime.now(timezone.utc)
+                md = deepcopy(hit.metadata)
+                md.task_id = task_id
+                md.test_id = test_id
+                md.pair_index = pair_index
+                md.start_timestamp = now
+                md.end_timestamp = now
+                if self._zero_cost_on_hit:
+                    md.usage = Usage(
+                        prompt_tokens=0,
+                        completion_tokens=0,
+                        total_tokens=0,
+                        completion_tokens_details=md.usage.completion_tokens_details.__class__(
+                            reasoning_tokens=0,
+                            accepted_prediction_tokens=0,
+                            rejected_prediction_tokens=0,
+                        ),
+                    )
+                    md.cost = Cost(prompt_cost=0.0, completion_cost=0.0, reasoning_cost=0.0, total_cost=0.0)
+                attempt = Attempt(answer=hit.answer, code=hit.code, metadata=md, correct=hit.correct)
+                return attempt
+
+        # Cache miss or bypass requested: call provider and store (refresh)
         attempt = self._adapter.make_prediction(prompt, task_id=task_id, test_id=test_id, pair_index=pair_index)
         try:
             self._cache.set(key, attempt)
