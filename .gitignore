@@ -180,3 +180,4 @@ analyze_submission_times.py
 *local*
 .claude
 results/
+uv.lock
