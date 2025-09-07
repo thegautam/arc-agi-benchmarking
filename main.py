@@ -64,7 +64,7 @@ class ARCTester:
             cache_dir = os.getenv("ARC_AGI_CACHE_DIR")
             zero_cost_on_hit = os.getenv("ARC_AGI_CACHE_ZERO_COST_ON_HIT", "1").lower() in {"1", "true", "yes", "on"}
             provider = CachedAdapter(provider, cache_dir=cache_dir, enabled=True, zero_cost_on_hit=zero_cost_on_hit)
-            logger.info(f"Provider caching enabled. Cache dir: {cache_dir or 'logs/provider_cache'}; zero_cost_on_hit={zero_cost_on_hit}")
+            logger.debug(f"Provider caching enabled. Cache dir: {cache_dir or 'logs/provider_cache'}; zero_cost_on_hit={zero_cost_on_hit}")
         return provider
         
     def predict_task_output(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int):
@@ -79,7 +79,6 @@ class ARCTester:
         # Convert the training pairs and test pairs into a prompt
         prompt = convert_task_pairs_to_prompt(training_pairs, test_input)
 
-        logger.info(f"Making prediction for task {task_id}, test {test_id}, pair_index {pair_index}")
         logger.debug(f"Using model config: {self.model_config.name} ({self.model_config.provider})")
         logger.debug(f"Prompt length: {len(prompt)} characters")
         
@@ -178,13 +177,11 @@ class ARCTester:
             Returns None immediately if submission exists and overwrite is False.
         """
         
-        logger.info(f"Running task {task_id} with config {self.config}")
         utils.validate_data(data_dir, task_id)
 
         # Use the config name as the test_id
         test_id = self.config
-        
-        logger.info(f"Using model_config: {test_id} for task_id: {task_id}")
+        logger.info(f"{task_id} | {self.config} | ")        
 
         # Logic for overwrite. If save_submission_dir is provided, check if the submission already exists
         if self.save_submission_dir:
@@ -201,7 +198,7 @@ class ARCTester:
                     else:
                         logger.info(f"Submission for task {task_id} using {test_id} already exists, overwriting")
                 else:
-                    logger.info(f"Submission for task {task_id} using {test_id} already exists, but is incorrect.")
+                    logger.info(f"cached-incorrect |")
         
         task_attempts = []
 
@@ -211,7 +208,7 @@ class ARCTester:
         # Go through each test pair to get a prediction. 96% of challenges have 1 pair.
         for t, pair_input_obj in enumerate(test_input_pairs):
             pair_index = t
-            logger.info(f"Starting task {task_id}, ModelConfig: {test_id}, Test Pair Index: {pair_index+1}/{len(test_input_pairs)}")
+            logger.debug(f"Starting task {task_id}, ModelConfig: {test_id}, Test Pair Index: {pair_index+1}/{len(test_input_pairs)}")
             
             pair_submission_attempts = {}
 
@@ -259,7 +256,7 @@ class ARCTester:
 
             if self.save_submission_dir:
                 utils.save_submission(self.save_submission_dir, task_id, task_attempts)
-                logger.info(f"Submission for task {task_id}, ModelConfig {test_id} saved to {self.save_submission_dir}")
+                logger.debug(f"Submission for task {task_id}, ModelConfig {test_id} saved to {self.save_submission_dir}")
         else:
             logger.warning(f"No valid predictions for task {task_id}, ModelConfig {test_id} after all attempts. Skipping submission.")
 
@@ -307,9 +304,13 @@ def main_cli(cli_args: Optional[List[str]] = None):
     # Configure logging
     if args.verbose:
         # Verbose mode: Show DEBUG for our code, WARNING+ for libraries
+        handler = logging.StreamHandler()
+        handler.terminator = ""
+        handler.setFormatter(logging.Formatter('%(message)s'))
         logging.basicConfig(
             level=logging.DEBUG,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            handlers=[handler],
+            force=True
         )
         
         # Set library loggers to WARNING to reduce noise
@@ -326,10 +327,14 @@ def main_cli(cli_args: Optional[List[str]] = None):
         
         logger.info("Verbose mode enabled - showing debug output for arc_agi_benchmarking only")
     else:
-        # Normal mode: Use the specified log level
+        # Normal mode: Use the specified log level, no timestamps or newlines
+        handler = logging.StreamHandler()
+        handler.terminator = ""
+        handler.setFormatter(logging.Formatter('%(message)s'))
         logging.basicConfig(
             level=getattr(logging, args.log_level.upper()),
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            handlers=[handler],
+            force=True
         )
 
     arc_solver = ARCTester(

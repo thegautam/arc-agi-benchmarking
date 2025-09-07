@@ -88,7 +88,6 @@ done
 
 mkdir -p "$WORK_DIR"
 
-echo "[run_task.sh] Predicting: task=$TASK_ID, config=$MODEL_CONFIG"
 uv run python main.py \
   --task_id "$TASK_ID" \
   --config "$MODEL_CONFIG" \
@@ -97,14 +96,12 @@ uv run python main.py \
   $PRINT_SUBMISSION_FLAG \
   --log-level "$LOG_LEVEL"
 
-echo "[run_task.sh] Scoring: task=$TASK_ID"
 uv run python -m src.arc_agi_benchmarking.scoring.scoring \
   --task_dir "$DATA_DIR" \
   --submission_dir "$WORK_DIR" \
   --results_dir "$WORK_DIR" \
   --print_logs
 
-echo "[run_task.sh] Visualizing: task=$TASK_ID"
 uv run python -m src.arc_agi_benchmarking.scoring.visualize_all \
   --task_id "$TASK_ID" \
   --data_dir "$DATA_DIR" \
