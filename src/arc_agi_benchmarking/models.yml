@@ -93,6 +93,10 @@ models:
     reasoning:
       effort: "low"
       summary: "auto"
+    tools:
+      - type: "code_interpreter"
+        container:
+          type: "auto"
     max_completion_tokens: 100000
     pricing:
       date: "2025-08-07"
