@@ -97,7 +97,7 @@ models:
       - type: "code_interpreter"
         container:
           type: "auto"
-    max_completion_tokens: 100000
+    max_completion_tokens: 1000
     pricing:
       date: "2025-08-07"
       input: 0.25

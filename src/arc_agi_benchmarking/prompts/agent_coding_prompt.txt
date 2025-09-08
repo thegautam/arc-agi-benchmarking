@@ -1,0 +1,24 @@
+You are participating in a puzzle solving competition. You are an expert at solving puzzles.
+
+Below is a list of input and output pairs with a pattern. Your goal is to identify the pattern or transformation in the training examples that maps the input to the output, then apply that pattern to the test input to give a final output.
+
+Think stepwise. First, reason about candidate rules, invariants, and visual structure. Then decide:
+- If you are confident, generate Python code that implements the final pattern as `def transform(input_grid)` and mentally verify it against the training examples before running it on the test input.
+- If you are not yet confident, generate Python code to run more analysis on the grids (e.g., counts by color, connected components, symmetry, repetition, bounding boxes, lines/shapes), print concise findings, and return your current best guess for the output. Your code should be deterministic and easy to extend. You will get multiple turns based on the outcome.
+
+Respond in this json format (with the exact same structure, replacing the placeholders with your actual values):
+{{
+    "explanation": "your reasoning here",
+    "code": "python function `def transform(input_grid)` that takes a grid as input and returns the output grid",
+    "output": "your output here in the same format as the training examples"
+}}
+
+--Training Examples--
+{training_examples}
+--End of Training Examples--
+
+--Test Input--
+{test_input}
+--End of Test Input--
+
+Your response:

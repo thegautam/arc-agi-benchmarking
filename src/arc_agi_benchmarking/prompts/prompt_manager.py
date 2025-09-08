@@ -16,11 +16,17 @@ def _load_prompt(prompt_name: str) -> str:
     with open(prompt_path, "r") as f:
         return f.read()
 
-def convert_task_pairs_to_prompt(training_pairs: List[ARCPair], test_input: ARCPair) -> str:
+def convert_task_pairs_to_prompt(training_pairs: List[ARCPair], test_input: ARCPair, prompt_name: str = "agent_coding_prompt") -> str:
     """
-    Convert the training pairs to a prompt with scene descriptions
+    Convert the training pairs to a prompt with scene descriptions.
+    
+    Args:
+        training_pairs: List of training input/output pairs.
+        test_input: The test input pair (only input is used for prompt construction).
+        prompt_name: Name of the prompt template (without .txt) to load from this directory.
+                      Defaults to "simple_coding_prompt".
     """
-    prompt_template = _load_prompt("simple_coding_prompt")
+    prompt_template = _load_prompt(prompt_name)
 
     training_examples = ""
     for i, pair in enumerate(training_pairs):

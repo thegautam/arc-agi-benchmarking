@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 class ARCTester:
-    def __init__(self, config: str, save_submission_dir: str, overwrite_submission: bool, print_submission: bool, num_attempts: int, retry_attempts: int):
+    def __init__(self, config: str, save_submission_dir: str, overwrite_submission: bool, print_submission: bool, num_attempts: int, retry_attempts: int, prompt_name: str = "simple_coding_prompt"):
         self.config = config
         self.model_config = utils.read_models_config(config)
         self.provider = self.init_provider(self.model_config.provider)
@@ -35,6 +35,7 @@ class ARCTester:
         self.print_submission = print_submission
         self.num_attempts = num_attempts
         self.retry_attempts = retry_attempts
+        self.prompt_name = prompt_name
 
     def init_provider(self, provider_name: str) -> ProviderAdapter:
         if provider_name == "anthropic":
@@ -77,7 +78,7 @@ class ARCTester:
         """
 
         # Convert the training pairs and test pairs into a prompt
-        prompt = convert_task_pairs_to_prompt(training_pairs, test_input)
+        prompt = convert_task_pairs_to_prompt(training_pairs, test_input, prompt_name=self.prompt_name)
 
         logger.debug(f"Using model config: {self.model_config.name} ({self.model_config.provider})")
         logger.debug(f"Prompt length: {len(prompt)} characters")
@@ -312,6 +313,12 @@ def main_cli(cli_args: Optional[List[str]] = None):
         help="Set the logging level (default: INFO)"
     )
     parser.add_argument(
+        "--prompt_name",
+        type=str,
+        default="simple_coding_prompt",
+        help="Prompt template name in prompts/ without extension (e.g., 'simple_coding_prompt' or 'agent_coding_prompt')"
+    )
+    parser.add_argument(
         "--verbose", 
         action="store_true", 
         help="Enable verbose output (shows debug info for arc_agi_benchmarking only, keeps libraries quiet)"
@@ -363,7 +370,8 @@ def main_cli(cli_args: Optional[List[str]] = None):
         overwrite_submission=args.overwrite_submission,
         print_submission=args.print_submission,
         num_attempts=args.num_attempts,
-        retry_attempts=args.retry_attempts
+        retry_attempts=args.retry_attempts,
+        prompt_name=args.prompt_name
     )
    
     arc_solver.generate_task_solution(
