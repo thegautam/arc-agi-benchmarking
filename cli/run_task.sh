@@ -94,7 +94,8 @@ uv run python main.py \
   --data_dir "$DATA_DIR" \
   --save_submission_dir "$WORK_DIR" \
   $PRINT_SUBMISSION_FLAG \
-  --log-level "$LOG_LEVEL"
+  --log-level "$LOG_LEVEL" \
+  --num_attempts 3
 
 uv run python -m src.arc_agi_benchmarking.scoring.scoring \
   --task_dir "$DATA_DIR" \
