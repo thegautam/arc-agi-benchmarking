@@ -49,14 +49,16 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         """
         pass
 
-    def _call_ai_model(self, prompt: str) -> Any:
+    def _call_ai_model(self, prompt: Optional[str] = None, messages: Optional[List[Dict[str, str]]] = None) -> Any:
         """
         Call the appropriate OpenAI API based on the api_type
         """
         
         # Validate that background and stream are not both enabled for responses API
         stream_enabled = self.model_config.kwargs.get('stream', False) or getattr(self.model_config, 'stream', False)
-        messages = [{"role": "user", "content": prompt}]
+        # Build messages if not provided (backward compatible)
+        if messages is None:
+            messages = [{"role": "user", "content": prompt or ""}]
         if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
             if stream_enabled:
                 return self._chat_completion_stream(messages)

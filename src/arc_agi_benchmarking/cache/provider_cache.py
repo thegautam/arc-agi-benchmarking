@@ -1,7 +1,7 @@
 import os
 import json
 import hashlib
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pydantic import ValidationError
 
 from arc_agi_benchmarking.schemas import Attempt, ModelConfig, APIType
@@ -51,19 +51,30 @@ class ProviderCache:
         return canon
 
     @staticmethod
-    def build_key_dict(prompt: str, model_config: ModelConfig) -> Dict[str, Any]:
+    def build_key_dict(prompt: Optional[str], model_config: ModelConfig, messages: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """
         Build a canonical key dict. Only include parameters that influence model output.
         Excludes run-specific metadata (task_id, test_id, pair_index, timestamps).
+        If a messages list is provided, use it instead of a single prompt string so different
+        conversation states produce distinct keys.
         """
         canonical_kwargs = ProviderCache._canonicalize_kwargs(model_config.api_type, model_config.kwargs or {})
-        return {
+        key: Dict[str, Any] = {
             "provider": model_config.provider,
             "model_name": model_config.model_name,
             "api_type": model_config.api_type,
             "kwargs": canonical_kwargs,
-            "prompt": prompt,
         }
+        if messages is not None:
+            # Normalize messages to role/content pairs only for stability
+            key["messages"] = [
+                {"role": m.get("role"), "content": m.get("content")}
+                for m in messages
+                if isinstance(m, dict)
+            ]
+        else:
+            key["prompt"] = prompt or ""
+        return key
 
     @staticmethod
     def key_to_hash(key_dict: Dict[str, Any]) -> str:

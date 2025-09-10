@@ -27,7 +27,7 @@ class OpenAIAdapter(OpenAIBaseAdapter):
         return client
 
 
-    def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
+    def make_prediction(self, prompt: Optional[str] = None, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None, messages: Optional[List[Dict[str, str]]] = None) -> Attempt:
         """
         Make a prediction with the OpenAI model and return an Attempt object
         
@@ -38,8 +38,8 @@ class OpenAIAdapter(OpenAIBaseAdapter):
         """
         start_time = datetime.now(timezone.utc)
         
-
-        response = self._call_ai_model(prompt)
+        # Call model with messages if provided (multi-turn), otherwise with single prompt
+        response = self._call_ai_model(prompt=prompt, messages=messages)
         
         end_time = datetime.now(timezone.utc)
 
@@ -53,15 +53,29 @@ class OpenAIAdapter(OpenAIBaseAdapter):
         reasoning_summary = self._get_reasoning_summary(response)
 
         # Convert input messages to choices
-        input_choices = [
-            Choice(
-                index=0,
-                message=Message(
-                    role="user",
-                    content=prompt
+        input_choices: List[Choice] = []
+        if messages is not None:
+            for i, m in enumerate(messages):
+                # Only include role/content for stability
+                input_choices.append(
+                    Choice(
+                        index=i,
+                        message=Message(
+                            role=m.get("role", "user"),
+                            content=m.get("content", "")
+                        )
+                    )
                 )
-            )
-        ]
+        else:
+            input_choices = [
+                Choice(
+                    index=0,
+                    message=Message(
+                        role="user",
+                        content=prompt or ""
+                    )
+                )
+            ]
 
         # Convert OpenAI response to our schema
         response_choices = [
