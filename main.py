@@ -279,7 +279,6 @@ class ARCTester:
 
         # Use the config name as the test_id
         test_id = self.config
-        logger.info(f"{task_id} | {self.config} | {self.prompt_name} |")        
 
         # Logic for overwrite. If save_submission_dir is provided, check if the submission already exists
         if self.save_submission_dir:
