@@ -180,14 +180,15 @@ class ARCTester:
                 for idx, (input_pair, actual_output) in enumerate(zip(training_pairs, train_outputs)):
                     score, message = compare_grids(input_pair.output, actual_output)
                     if error:
-                        print(error)
-                    else:
+                        logger.error(error)
+                    elif score < 1.0:
                         per_example_stdout = ""
                         if isinstance(stdout_pieces, list) and idx < len(stdout_pieces):
                             s = stdout_pieces[idx]
                             per_example_stdout = s if isinstance(s, str) else ""
-                        print(message, per_example_stdout)
-                        print(score)
+                        detail = f"{message} {per_example_stdout}".strip()
+                        logger.debug(detail)
+                        logger.debug(score)
 
             # Execute simple transform(grid) code safely and use correct grid attribute
             test_output = None
@@ -510,7 +511,7 @@ def main_cli(cli_args: Optional[List[str]] = None):
         logging.getLogger('arc_agi_benchmarking').setLevel(logging.DEBUG)
         logging.getLogger('__main__').setLevel(logging.DEBUG)
         
-        logger.info("Verbose mode enabled - showing debug output for arc_agi_benchmarking only")
+        logger.debug("Verbose mode enabled - showing debug output for arc_agi_benchmarking only")
     else:
         # Normal mode: Use the specified log level, no timestamps or newlines
         handler = logging.StreamHandler()
@@ -521,6 +522,14 @@ def main_cli(cli_args: Optional[List[str]] = None):
             handlers=[handler],
             force=True
         )
+
+        # Silence noisy third-party loggers
+        library_loggers = [
+            'openai', 'httpx', 'httpcore', 'urllib3', 'requests',
+            'anthropic', 'google', 'pydantic', 'transformers'
+        ]
+        for lib_logger in library_loggers:
+            logging.getLogger(lib_logger).setLevel(logging.WARNING)
 
     arc_solver = ARCTester(
         config=args.config,
