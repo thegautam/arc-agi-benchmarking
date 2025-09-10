@@ -22,7 +22,7 @@ fi
 TASK_ID="$1"; shift
 
 # Defaults
-DEFAULT_MODEL_CONFIG="gpt-5-mini-2025-08-07-minimal"
+DEFAULT_MODEL_CONFIG="gpt-5-2025-08-07-medium"
 DEFAULT_DATA_DIR="data/arc-agi/data/training"
 DEFAULT_WORK_BASE="results/training"
 

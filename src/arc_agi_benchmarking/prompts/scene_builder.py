@@ -1,4 +1,5 @@
 from typing import List, Dict, Tuple
+from collections import deque
 
 def get_color_counts(grid: List[List[int]]) -> Dict[int, int]:
     """Count occurrences of each color in the grid."""
@@ -9,16 +10,24 @@ def get_color_counts(grid: List[List[int]]) -> Dict[int, int]:
     return color_counts
 
 # Get per-color bounding boxes of all non-zero components
-def get_largest_bounding_box(grid: List[List[int]]) -> Dict[int, List[Tuple[int, int, int, int]]]:
+def get_largest_bounding_box(
+    grid: List[List[int]],
+    blank_hops: int = 0,
+) -> Dict[int, List[Tuple[int, int, int, int]]]:
     """
-    For each non-zero color, find all 4-connected components consisting of that color
-    and return their bounding boxes.
+    For each non-zero color, find components consisting of that color and return
+    their bounding boxes. Connectivity is primarily 4-directional (up, down, left, right)
+    through same-color cells, but can optionally traverse up to `blank_hops` consecutive
+    blank (zero) cells in order to connect same-color regions.
 
     Returns:
         Dict[color, List[(top, left, bottom, right)]]
 
     Notes:
     - Connectivity is 4-directional (up, down, left, right).
+    - When `blank_hops` > 0, traversal may pass through up to that many consecutive 0-cells
+      (blank spaces). Traversal cannot pass through non-zero cells of a different color.
+      The consecutive-blank counter resets whenever a same-color cell is reached.
     - Coordinates are 0-indexed and inclusive.
     - Lists of boxes are sorted lexicographically for determinism.
     - Returns an empty dict if the grid is empty or contains no non-zero cells.
@@ -27,37 +36,63 @@ def get_largest_bounding_box(grid: List[List[int]]) -> Dict[int, List[Tuple[int,
         return {}
 
     rows, cols = len(grid), len(grid[0])
-    visited = [[False] * cols for _ in range(rows)]
+    # Clamp negative values to 0 to preserve expected behavior
+    blank_hops = max(0, int(blank_hops))
+
+    # Tracks which cells of a given color have already been assigned to any component
+    visited_color = [[False] * cols for _ in range(rows)]
     boxes_by_color: Dict[int, List[Tuple[int, int, int, int]]] = {}
 
     for r in range(rows):
         for c in range(cols):
             color = grid[r][c]
-            if color == 0 or visited[r][c]:
+            if color == 0 or visited_color[r][c]:
                 continue
 
-            # DFS for the current same-color component
-            stack = [(r, c)]
-            visited[r][c] = True
+            # BFS for the current component, allowing up to `blank_hops` consecutive blanks (0s)
+            queue = deque()
+            queue.append((r, c, 0))  # (row, col, consecutive_blank_count)
+            visited_color[r][c] = True
             top = bottom = r
             left = right = c
 
-            while stack:
-                cr, cc = stack.pop()
-                if cr < top:
-                    top = cr
-                if cr > bottom:
-                    bottom = cr
-                if cc < left:
-                    left = cc
-                if cc > right:
-                    right = cc
+            # Track best (lowest) consecutive-blank count we've seen for zero cells in this BFS
+            visited_zero: List[List[int | None]] = [[None] * cols for _ in range(rows)]
+
+            while queue:
+                cr, cc, consec = queue.popleft()
+
+                # Update bounding box whenever we visit a same-color cell
+                if grid[cr][cc] == color:
+                    if cr < top:
+                        top = cr
+                    if cr > bottom:
+                        bottom = cr
+                    if cc < left:
+                        left = cc
+                    if cc > right:
+                        right = cc
 
                 for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
                     nr, nc = cr + dr, cc + dc
-                    if 0 <= nr < rows and 0 <= nc < cols and not visited[nr][nc] and grid[nr][nc] == color:
-                        visited[nr][nc] = True
-                        stack.append((nr, nc))
+                    if not (0 <= nr < rows and 0 <= nc < cols):
+                        continue
+
+                    cell = grid[nr][nc]
+                    if cell == color:
+                        if not visited_color[nr][nc]:
+                            visited_color[nr][nc] = True
+                            queue.append((nr, nc, 0))  # reset consecutive blanks on reaching color
+                    elif cell == 0:
+                        new_consec = consec + 1
+                        if new_consec <= blank_hops:
+                            vz = visited_zero[nr][nc]
+                            if vz is None or new_consec < vz:
+                                visited_zero[nr][nc] = new_consec
+                                queue.append((nr, nc, new_consec))
+                    else:
+                        # Different non-zero color: cannot traverse
+                        continue
 
             boxes_by_color.setdefault(color, []).append((top, left, bottom, right))
 
@@ -67,7 +102,7 @@ def get_largest_bounding_box(grid: List[List[int]]) -> Dict[int, List[Tuple[int,
 
     return boxes_by_color
 
-def describe_grid(grid: List[List[int]], name: str = "grid") -> str:
+def describe_grid(grid: List[List[int]], name: str = "grid", blank_hops: int = 0) -> str:
     """Generate a description of a grid including size and color information."""
     if not grid or not grid[0]:
         return f"The {name} is empty."
@@ -86,6 +121,18 @@ def describe_grid(grid: List[List[int]], name: str = "grid") -> str:
     
     for color, count in colors:
         description.append(f"  - {color}: {count} cells ({count / (rows * cols):.1%})")
+    
+    # Append per-color bounding box information
+    bboxes_by_color = get_largest_bounding_box(grid, blank_hops=blank_hops)
+    if bboxes_by_color:
+        description.append("- Bounding boxes by color (top, left, bottom, right):")
+        for color in sorted(bboxes_by_color.keys()):
+            boxes = bboxes_by_color[color]
+            description.append(f"  - {color}: {len(boxes)} component(s)")
+            for (top, left, bottom, right) in boxes:
+                height = bottom - top + 1
+                width = right - left + 1
+                description.append(f"    - ({top}, {left}, {bottom}, {right}) size={height}x{width}")
     
     return "\n".join(description)
 

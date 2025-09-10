@@ -5,7 +5,7 @@ TASKS=(
     "a85d4709" "c8cbb738" "8e1813be" "a699fb00" "5c2c9af4"
     "44f52bb0" "23581191" "94f9d214" "f9012d9b" "4258a5f9"
 )
-MODEL_CONFIG="gpt-5-mini-2025-08-07-low"
+MODEL_CONFIG="gpt-5-2025-08-07-medium"
 DATA_DIR="data/arc-agi/data/training"
 OUTPUT_DIR="results/training"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)

@@ -1,6 +1,8 @@
 import sys
 import os
 
+from arc_agi_benchmarking.prompts.scene_builder import compare_grids
+
 # Added: Add the src directory to sys.path to allow direct execution of main.py
 # This assumes main.py is in the project root and 'src' is a subdirectory.
 _project_root = os.path.dirname(os.path.abspath(__file__))
@@ -15,11 +17,11 @@ from dotenv import load_dotenv
 import arc_agi_benchmarking.utils as utils
 from arc_agi_benchmarking.utils.metrics import timeit, set_metrics_enabled
 from arc_agi_benchmarking.schemas import ARCTaskOutput, ARCPair, Attempt
-from arc_agi_benchmarking.prompts.prompt_manager import convert_task_pairs_to_prompt
+from arc_agi_benchmarking.prompts.prompt_manager import convert_task_pairs_to_prompt, _load_prompt
 from typing import List, Any, Optional
 import argparse
 import logging
-from arc_agi_benchmarking.scoring.execute_llm_code import run_code_attempt, is_grid
+from arc_agi_benchmarking.scoring.execute_llm_code import run_code_attempt, is_grid, run_on_training_and_compare
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +70,7 @@ class ARCTester:
             logger.debug(f"Provider caching enabled. Cache dir: {cache_dir or 'logs/provider_cache'}; zero_cost_on_hit={zero_cost_on_hit}")
         return provider
         
-    def predict_task_output(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int, bypass_cache: bool = False):
+    def predict_task_output(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int, bypass_cache: bool = False, prompt_feedback: Optional[str] = None, messages: Optional[List[dict]] = None):
         """
         Given a task, predict the test output. This reponse may need parsing.
 
@@ -77,35 +79,115 @@ class ARCTester:
         return the response
         """
 
-        # Convert the training pairs and test pairs into a prompt
-        prompt = convert_task_pairs_to_prompt(training_pairs, test_input, prompt_name=self.prompt_name)
+        # Build either a single prompt string (legacy) or use provided messages for chat
+        prompt = None
+        if messages is None:
+            # Convert the training pairs and test pairs into a prompt
+            prompt = convert_task_pairs_to_prompt(training_pairs, test_input, prompt_name=self.prompt_name, prompt_feedback=prompt_feedback)
 
         logger.debug(f"Using model config: {self.model_config.name} ({self.model_config.provider})")
-        logger.debug(f"Prompt length: {len(prompt)} characters")
+        if prompt is not None:
+            logger.debug(f"Prompt length: {len(prompt)} characters")
         
         try:
             logger.debug("Waiting for model response...")
             # If provider is wrapped with cache, allow bypass for fresh calls
             try:
                 if isinstance(self.provider, CachedAdapter):
+                    if messages is not None:
+                        response: Attempt = self.provider.make_prediction(
+                            prompt, task_id=task_id, test_id=test_id, pair_index=pair_index, bypass_cache=bypass_cache, messages=messages
+                        )
+                    else:
+                        response: Attempt = self.provider.make_prediction(
+                            prompt, task_id=task_id, test_id=test_id, pair_index=pair_index, bypass_cache=bypass_cache
+                        )
+                else:
+                    if messages is not None:
+                        response: Attempt = self.provider.make_prediction(
+                            prompt, task_id=task_id, test_id=test_id, pair_index=pair_index, messages=messages
+                        )
+                    else:
+                        response: Attempt = self.provider.make_prediction(
+                            prompt, task_id=task_id, test_id=test_id, pair_index=pair_index
+                        )
+            except TypeError:
+                # Fallback for providers that don't support bypass_cache kwarg
+                if messages is not None:
                     response: Attempt = self.provider.make_prediction(
-                        prompt, task_id=task_id, test_id=test_id, pair_index=pair_index, bypass_cache=bypass_cache
+                        prompt, task_id=task_id, test_id=test_id, pair_index=pair_index, messages=messages
                     )
                 else:
                     response: Attempt = self.provider.make_prediction(
                         prompt, task_id=task_id, test_id=test_id, pair_index=pair_index
                     )
-            except TypeError:
-                # Fallback for providers that don't support bypass_cache kwarg
-                response: Attempt = self.provider.make_prediction(
-                    prompt, task_id=task_id, test_id=test_id, pair_index=pair_index
-                )
         
             # Save the code if present
             code_str = getattr(response, "code", None)
             if code_str:
                 with open(os.path.join(self.save_submission_dir, f"{task_id}.py"), "w") as f:
                     f.write(code_str)
+
+                # Run on training
+                train_outputs, stdout_pieces, error = run_on_training_and_compare(
+                    code_str,
+                    training_pairs,
+                    timeout=10,
+                )
+
+                # Build feedback for the next attempt based on training comparisons
+                feedback_lines = []
+                if error:
+                    feedback_lines.append("Error occurred while running code on training examples:")
+                    feedback_lines.append(str(error))
+                else:
+                    feedback_lines.append("Training comparison results (per example):")
+                    for idx, (input_pair, actual_output) in enumerate(zip(training_pairs, train_outputs)):
+                        score, message = compare_grids(input_pair.output, actual_output)
+                        feedback_lines.append(f"- Example {idx}: score={score:.3f}. {message}")
+                    if stdout_pieces:
+                        # Join all captured stdout entries from training runs and keep concise
+                        combined_stdout = "\n".join(s for s in stdout_pieces if isinstance(s, str))
+                        trimmed_stdout = combined_stdout.strip()
+                        if len(trimmed_stdout) > 800:
+                            trimmed_stdout = trimmed_stdout[:800] + "... [truncated]"
+                        feedback_lines.append("Auxiliary analysis stdout (truncated if long):")
+                        feedback_lines.append(trimmed_stdout)
+
+                # Attach feedback to the Attempt for use in subsequent attempts
+                try:
+                    response.prompt_feedback = "\n".join(feedback_lines) if feedback_lines else None
+                except Exception:
+                    # Be resilient if provider returned a non-standard object
+                    pass
+
+                # Determine if ALL training examples passed exactly
+                try:
+                    training_all_passed = False
+                    if not error and isinstance(train_outputs, list) and len(train_outputs) == len(training_pairs):
+                        training_all_passed = all(
+                            compare_grids(inp.output, out)[0] == 1.0
+                            for inp, out in zip(training_pairs, train_outputs)
+                        )
+                    # Propagate this signal via metadata.kwargs for outer-loop early stopping
+                    if getattr(response, 'metadata', None) and getattr(response.metadata, 'kwargs', None) is not None:
+                        response.metadata.kwargs["training_all_passed"] = training_all_passed
+                except Exception:
+                    # Non-fatal if anything goes wrong computing this
+                    pass
+
+                # Preserve previous prints for visibility
+                for idx, (input_pair, actual_output) in enumerate(zip(training_pairs, train_outputs)):
+                    score, message = compare_grids(input_pair.output, actual_output)
+                    if error:
+                        print(error)
+                    else:
+                        per_example_stdout = ""
+                        if isinstance(stdout_pieces, list) and idx < len(stdout_pieces):
+                            s = stdout_pieces[idx]
+                            per_example_stdout = s if isinstance(s, str) else ""
+                        print(message, per_example_stdout)
+                        print(score)
 
             # Execute simple transform(grid) code safely and use correct grid attribute
             test_output = None
@@ -145,13 +227,13 @@ class ARCTester:
 
         return response
 
-    def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int, bypass_cache: bool = False) -> Attempt:
+    def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int, bypass_cache: bool = False, prompt_feedback: Optional[str] = None, messages: Optional[List[dict]] = None) -> Attempt:
         """
         Modified to return the full Attempt object instead of just the parsed answer
         Uses the refactored parsing logic from arc_agi_benchmarking.parsing
         """
         # Get the initial response as an Attempt object
-        attempt: Attempt = self.predict_task_output(training_pairs, test_input, task_id, test_id, pair_index, bypass_cache=bypass_cache)
+        attempt: Attempt = self.predict_task_output(training_pairs, test_input, task_id, test_id, pair_index, bypass_cache=bypass_cache, prompt_feedback=prompt_feedback, messages=messages)
 
         try:
             # If the validator couldn't parse the answer, fall back to the provider extractor
@@ -196,7 +278,7 @@ class ARCTester:
 
         # Use the config name as the test_id
         test_id = self.config
-        logger.info(f"{task_id} | {self.config} | ")        
+        logger.info(f"{task_id} | {self.config} | {self.prompt_name} |")        
 
         # Logic for overwrite. If save_submission_dir is provided, check if the submission already exists
         if self.save_submission_dir:
@@ -216,7 +298,7 @@ class ARCTester:
                         logger.info(f" overwriting |")
                 else:
                     logger.info("cached-incorrect | bypass |")
-                    bypass_cache_for_task = True
+                    bypass_cache_for_task = False
         else:
             bypass_cache_for_task = False
         
@@ -225,14 +307,28 @@ class ARCTester:
         train_pairs = utils.get_train_pairs_from_task(data_dir, task_id)
         test_input_pairs = utils.get_test_input_from_task(data_dir, task_id)
 
+        # Preload system prompt once
+        try:
+            system_prompt_text = _load_prompt("system_prompt")
+        except Exception:
+            system_prompt_text = "You are an ARC solver. Return only the final answer as a JSON array of arrays of integers."
+
         # Go through each test pair to get a prediction. 96% of challenges have 1 pair.
         for t, pair_input_obj in enumerate(test_input_pairs):
             pair_index = t
             logger.debug(f"Starting task {task_id}, ModelConfig: {test_id}, Test Pair Index: {pair_index+1}/{len(test_input_pairs)}")
             
             pair_submission_attempts = {}
+            previous_prompt_feedback: Optional[str] = None
+            # Maintain a running message index so subsequent attempts don't reuse indices
+            next_choice_index: int = 0
+            # Initialize per-pair conversation messages
+            messages: List[dict] = [
+                {"role": "system", "content": system_prompt_text}
+            ]
 
             # Run through each prediction attempt
+            stop_attempts = False
             for attempt_num in range(1, self.num_attempts + 1):
                 attempt_key = f"attempt_{attempt_num}"
                 pair_submission_attempts[attempt_key] = None
@@ -240,6 +336,27 @@ class ARCTester:
                 for retry_num in range(self.retry_attempts):
                     try:
                         logger.debug(f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index+1}, Predicting attempt #{attempt_num}, retry #{retry_num + 1}")
+                        # Build the user message for attempt 1 only (training + test input)
+                        if attempt_num == 1 and retry_num == 0 and not any(m.get("role") == "user" for m in messages):
+                            first_user_content = convert_task_pairs_to_prompt(train_pairs, pair_input_obj, prompt_name=self.prompt_name, prompt_feedback=None)
+                            messages.append({"role": "user", "content": first_user_content})
+
+                        # For attempt > 1, append assistant prior reply and user feedback
+                        if attempt_num > 1 and retry_num == 0:
+                            # Append assistant last answer from previous attempt if available
+                            if isinstance(pair_submission_attempts.get(f"attempt_{attempt_num-1}"), dict):
+                                try:
+                                    prev_choices = pair_submission_attempts[f"attempt_{attempt_num-1}"]["metadata"]["choices"]
+                                    if prev_choices:
+                                        last_msg = prev_choices[-1]["message"]["content"]
+                                        if last_msg:
+                                            messages.append({"role": "assistant", "content": last_msg})
+                                except Exception:
+                                    pass
+                            # Append feedback (if any)
+                            if previous_prompt_feedback:
+                                messages.append({"role": "user", "content": f"Feedback from previous attempt:\n{previous_prompt_feedback}"})
+
                         # Now storing the full attempt object with task_id and test_id
                         attempt_obj = self.get_task_prediction(
                             training_pairs=train_pairs,
@@ -247,12 +364,49 @@ class ARCTester:
                             task_id=task_id,
                             test_id=test_id,
                             pair_index=pair_index,
-                            bypass_cache=bypass_cache_for_task
+                            bypass_cache=bypass_cache_for_task,
+                            prompt_feedback=None,  # feedback now lives as a separate user message
+                            messages=messages,
                         )
 
                         if attempt_obj is not None:
                             logger.debug(f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index+1}, Attempt #{attempt_num} successful. Prediction: {attempt_obj.answer}")
+                            # Renumber choices so we don't repeat indices across attempts
+                            try:
+                                if getattr(attempt_obj, 'metadata', None) and getattr(attempt_obj.metadata, 'choices', None):
+                                    for ch in attempt_obj.metadata.choices:
+                                        # Assign new index and advance the counter
+                                        ch.index = next_choice_index
+                                        next_choice_index += 1
+                            except Exception:
+                                # Be resilient; if anything goes wrong, proceed without renumbering
+                                pass
+
                             pair_submission_attempts[attempt_key] = attempt_obj.model_dump(mode='json')
+                            # Capture feedback for the next attempt (if any)
+                            if getattr(attempt_obj, 'prompt_feedback', None):
+                                previous_prompt_feedback = attempt_obj.prompt_feedback
+
+                            # If all training examples passed, write the test output and stop further attempts for this pair
+                            try:
+                                training_all_passed = bool(getattr(attempt_obj.metadata, 'kwargs', {}).get('training_all_passed', False))
+                            except Exception:
+                                training_all_passed = False
+
+                            if training_all_passed:
+                                try:
+                                    if self.save_submission_dir:
+                                        # Ensure directory exists
+                                        os.makedirs(self.save_submission_dir, exist_ok=True)
+                                        # Write per-pair test output with a non-.json extension so scoring won't pick it up
+                                        test_output_path = os.path.join(self.save_submission_dir, f"{task_id}.pair{pair_index}.test_output.jsonl")
+                                        with open(test_output_path, "w") as outf:
+                                            json.dump(attempt_obj.answer, outf, indent=4)
+                                        logger.debug(f"Wrote test output for task {task_id}, pair {pair_index} to {test_output_path}")
+                                except Exception as e:
+                                    logger.warning(f"    Failed to write test output for task {task_id}, pair {pair_index}: {e}")
+
+                                stop_attempts = True
                             break 
                     except Exception as e:
                         error_msg = f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index+1}, Attempt #{attempt_num}, Retry #{retry_num + 1} failed. Error: {e}"
@@ -265,6 +419,10 @@ class ARCTester:
 
                     if retry_num == self.retry_attempts - 1:
                         logger.warning(f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index+1}, All {self.retry_attempts} retries failed for attempt #{attempt_num}")
+
+                # After finishing retries for this attempt, if we've flagged to stop, break out of attempts loop
+                if stop_attempts:
+                    break
 
             # Only append non-None attempts for this pair
             if any(v is not None for v in pair_submission_attempts.values()):
@@ -297,7 +455,7 @@ def main_cli(cli_args: Optional[List[str]] = None):
     parser.add_argument("--overwrite_submission", action="store_true", help="Overwrite the submission if it already exists")
     parser.add_argument("--print_submission", action="store_true", help="Print the submission to the console after each task")
     parser.add_argument("--task_set", type=str, default="public_eval", choices=["public_eval", "public_training"], help="Task set to run")
-    parser.add_argument("--num_attempts", type=int, default=1, help="Number of attempts for each prediction")
+    parser.add_argument("--num_attempts", type=int, default=2, help="Number of attempts for each prediction")
     parser.add_argument("--retry_attempts", type=int, default=2, help="Number of retry attempts for failed predictions")
     parser.add_argument(
         "--enable-metrics",
@@ -315,7 +473,7 @@ def main_cli(cli_args: Optional[List[str]] = None):
     parser.add_argument(
         "--prompt_name",
         type=str,
-        default="simple_coding_prompt",
+        default="agent_coding_prompt",
         help="Prompt template name in prompts/ without extension (e.g., 'simple_coding_prompt' or 'agent_coding_prompt')"
     )
     parser.add_argument(
