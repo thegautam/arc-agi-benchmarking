@@ -1,7 +1,7 @@
 import json
 import os
 from arc_agi_benchmarking.schemas import ARCPair
-from typing import List
+from typing import List, Optional
 from .scene_builder import build_scene_description, describe_grid
 
 def _load_prompt(prompt_name: str) -> str:
@@ -16,7 +16,7 @@ def _load_prompt(prompt_name: str) -> str:
     with open(prompt_path, "r") as f:
         return f.read()
 
-def convert_task_pairs_to_prompt(training_pairs: List[ARCPair], test_input: ARCPair, prompt_name: str = "agent_coding_prompt") -> str:
+def convert_task_pairs_to_prompt(training_pairs: List[ARCPair], test_input: ARCPair, prompt_name: str = "agent_coding_prompt", prompt_feedback: Optional[str] = None) -> str:
     """
     Convert the training pairs to a prompt with scene descriptions.
     
@@ -43,7 +43,17 @@ def convert_task_pairs_to_prompt(training_pairs: List[ARCPair], test_input: ARCP
     test_input_str = json.dumps(test_input.input)
     test_scene = describe_grid(test_input.input, "test input")
 
+    # Build optional feedback section
+    feedback_section = ""
+    if prompt_feedback:
+        feedback_section = (
+            f"--Feedback from previous attempt--\n"
+            f"{prompt_feedback}\n"
+            f"--End of Feedback--\n\n"
+        )
+
     return prompt_template.format(
         training_examples=training_examples,
-        test_input=f"{test_scene}\n\n{test_input_str}"
+        test_input=f"{test_scene}\n\n{test_input_str}",
+        prompt_feedback_section=feedback_section,
     )
