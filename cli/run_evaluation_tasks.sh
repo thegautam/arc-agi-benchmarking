@@ -7,6 +7,7 @@ TASKS=(
     # These should be the task IDs from the evaluation set
 )
 MODEL_CONFIG="gpt-5-mini-2025-08-07-low"  # Or your preferred model config
+PROMPT_NAME="agent_coding_prompt"  # Prompt template to use
 DATA_DIR="data/arc-agi/data/evaluation"
 OUTPUT_DIR="results/evaluation"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -15,6 +16,9 @@ LOG_FILE="logs/evaluation_run_${TIMESTAMP}.log"
 # Create output and logs directories
 mkdir -p "$OUTPUT_DIR"
 mkdir -p "logs"
+
+# Print chosen model and prompt once
+echo "Using model config: $MODEL_CONFIG | Prompt: $PROMPT_NAME" | tee -a "$LOG_FILE"
 
 # Initialize results file
 echo "Task ID,Score,Cost,Attempts,Output Tokens,Duration" > "${OUTPUT_DIR}/results_summary.csv"
@@ -35,6 +39,7 @@ run_task() {
     python main.py \
         --task_id "$task_id" \
         --config "$MODEL_CONFIG" \
+        --prompt_name "$PROMPT_NAME" \
         --data_dir "$DATA_DIR" \
         --save_submission_dir "${task_dir}" \
         --print_submission \
