@@ -8,6 +8,65 @@ def get_color_counts(grid: List[List[int]]) -> Dict[int, int]:
             color_counts[cell] = color_counts.get(cell, 0) + 1
     return color_counts
 
+# Get per-color bounding boxes of all non-zero components
+def get_largest_bounding_box(grid: List[List[int]]) -> Dict[int, List[Tuple[int, int, int, int]]]:
+    """
+    For each non-zero color, find all 4-connected components consisting of that color
+    and return their bounding boxes.
+
+    Returns:
+        Dict[color, List[(top, left, bottom, right)]]
+
+    Notes:
+    - Connectivity is 4-directional (up, down, left, right).
+    - Coordinates are 0-indexed and inclusive.
+    - Lists of boxes are sorted lexicographically for determinism.
+    - Returns an empty dict if the grid is empty or contains no non-zero cells.
+    """
+    if not grid or not grid[0]:
+        return {}
+
+    rows, cols = len(grid), len(grid[0])
+    visited = [[False] * cols for _ in range(rows)]
+    boxes_by_color: Dict[int, List[Tuple[int, int, int, int]]] = {}
+
+    for r in range(rows):
+        for c in range(cols):
+            color = grid[r][c]
+            if color == 0 or visited[r][c]:
+                continue
+
+            # DFS for the current same-color component
+            stack = [(r, c)]
+            visited[r][c] = True
+            top = bottom = r
+            left = right = c
+
+            while stack:
+                cr, cc = stack.pop()
+                if cr < top:
+                    top = cr
+                if cr > bottom:
+                    bottom = cr
+                if cc < left:
+                    left = cc
+                if cc > right:
+                    right = cc
+
+                for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    nr, nc = cr + dr, cc + dc
+                    if 0 <= nr < rows and 0 <= nc < cols and not visited[nr][nc] and grid[nr][nc] == color:
+                        visited[nr][nc] = True
+                        stack.append((nr, nc))
+
+            boxes_by_color.setdefault(color, []).append((top, left, bottom, right))
+
+    # Sort each color's boxes for determinism
+    for color in boxes_by_color:
+        boxes_by_color[color].sort()
+
+    return boxes_by_color
+
 def describe_grid(grid: List[List[int]], name: str = "grid") -> str:
     """Generate a description of a grid including size and color information."""
     if not grid or not grid[0]:
@@ -98,5 +157,3 @@ def compare_grids(expected_grid: List[List[int]], actual_grid: List[List[int]]) 
             message += f"Row {row}, Col {col}: Expected {expected}, Actual {actual}\n"
 
     return score, message
-
-    
