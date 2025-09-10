@@ -143,6 +143,8 @@ class Attempt(BaseModel):
     code: Optional[str] = None
     metadata: AttemptMetadata
     correct: Optional[bool] = None
+    # Optional feedback to be included in the next attempt's prompt
+    prompt_feedback: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod

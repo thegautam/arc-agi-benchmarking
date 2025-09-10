@@ -13,6 +13,7 @@ from arc_agi_benchmarking.schemas import (
     BenchmarkedTaskResults,
     TestPairAttempts,
     Attempt,
+    ARCPair,
 )
 
 
@@ -206,6 +207,48 @@ def verify_on_train(train_outs: List[Any], expected: List[List[List[int]]]) -> b
         if not is_grid(got) or got != exp:
             return False
     return True
+
+
+def run_on_training_and_compare(
+    code: str,
+    train_pairs: List[ARCPair],
+    timeout: int = 10,
+) -> Dict[str, Any]:
+    """
+    Execute the provided code on each training input, collect outputs, and compare
+    them against the expected training outputs.
+
+    Args:
+        code: Python source that defines one of: transform/solve/apply/arc_transform(grid)
+        train_pairs: List of training pairs (input, output)
+        timeout: Per-call timeout in seconds
+
+    Returns:
+        A dictionary containing:
+        - train_outputs: list of model-produced grids (or None on failure per item)
+        - expected_outputs: list of expected grids
+        - ok: boolean indicating whether all outputs exactly matched expected
+        - error: first error string encountered (if any)
+        - stdout: list of stdout strings captured per training call
+    """
+    # Gather inputs and expected outputs
+    train_inputs: List[List[List[int]]] = [p.input for p in train_pairs]
+    expected_train: List[List[List[int]]] = [p.output for p in train_pairs]  # type: ignore[arg-type]
+
+    train_outs: List[Any] = []
+    stdout_pieces: List[str] = []
+    error: Optional[str] = None
+
+    for grid in train_inputs:
+        out_g, stdout_g, err_g = run_code_attempt(code, grid, timeout)
+        stdout_pieces.append(stdout_g or "")
+        if err_g and not error:
+            error = f"train_call_failed: {err_g}"
+        train_outs.append(out_g)
+
+    ok = verify_on_train(train_outs, expected_train)
+
+    return train_outs, stdout_pieces, error
 
 
 def _extract_bracketed_lists(text: str) -> List[str]:
